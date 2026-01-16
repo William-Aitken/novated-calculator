@@ -1,0 +1,22 @@
+{
+      "name": "novated-calculator",
+        "version": "1.0.0",
+          "private": true,
+            "scripts": {
+                "dev": "next dev --no-turbo",
+                    "build": "next build",
+                        "start": "next start",
+                            "lint": "biome check ."
+                              },
+                                "dependencies": {
+                                    "next": "latest",
+                                        "react": "latest",
+                                            "react-dom": "latest"
+                                              },
+                                                "devDependencies": {
+                                                    "@biomejs/biome": "latest",
+                                                        "typescript": "latest"
+                                                          }
+                                                          }
+                                                          
+}
