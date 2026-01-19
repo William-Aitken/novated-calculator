@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { calculateNovatedLease, calculateEffectiveInterestRate, type NovatedLeaseInputs } from '@/utils/leaseMath';
 
 const paymentFrequencies = [
@@ -18,7 +18,7 @@ const calculationBases = [
 
 export default function HomePage() {
   const [useResidual, setUseResidual] = useState(false);
-  const [inputs, setInputs] = useState<NovatedLeaseInputs>({
+  const defaultInputs: NovatedLeaseInputs = {
     driveawayCost: 50000,
     fbtBaseValue: 47527,
     documentationFee: 0,
@@ -27,10 +27,35 @@ export default function HomePage() {
     paymentAmount: 0,
     paymentsPerYear: 12,
     monthsDeferred: 2,
+  };
+  const [inputs, setInputs] = useState<NovatedLeaseInputs>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('novatedLeaseInputs');
+      if (saved) {
+        try {
+          return { ...defaultInputs, ...JSON.parse(saved) };
+        } catch {
+          return defaultInputs;
+        }
+      }
+    }
+    return defaultInputs;
   });
-  const [selectedFrequency, setSelectedFrequency] = useState(12); // Default to Monthly
+  const [selectedFrequency, setSelectedFrequency] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('novatedLeaseSelectedFrequency');
+      if (saved) return Number(saved);
+    }
+    return 12;
+  }); // Default to Monthly
   // Calculation basis dropdown state
-  const [calcBasis, setCalcBasis] = useState<'driveaway' | 'residualExcl' | 'residualIncl'>('driveaway');
+  const [calcBasis, setCalcBasis] = useState<'driveaway' | 'residualExcl' | 'residualIncl'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('novatedLeaseCalcBasis');
+      if (saved === 'driveaway' || saved === 'residualExcl' || saved === 'residualIncl') return saved;
+    }
+    return 'driveaway';
+  });
 
   const [results, setResults] = useState(calculateNovatedLease(inputs));
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -58,6 +83,10 @@ export default function HomePage() {
   const handleInputChange = (field: keyof NovatedLeaseInputs, value: number | boolean) => {
     const updatedInputs = { ...inputs, [field]: value };
     setInputs(updatedInputs);
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseInputs', JSON.stringify(updatedInputs));
+    }
     // If manual override fields are set, use them for calculation
     let calcInputs = { ...updatedInputs };
     if (
@@ -76,7 +105,14 @@ export default function HomePage() {
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const freq = Number(e.target.value);
     setSelectedFrequency(freq);
-    setInputs({ ...inputs, paymentsPerYear: freq });
+    setInputs(prev => {
+      const updated = { ...prev, paymentsPerYear: freq };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novatedLeaseInputs', JSON.stringify(updated));
+        localStorage.setItem('novatedLeaseSelectedFrequency', String(freq));
+      }
+      return updated;
+    });
   };
 
   const handleToggleMode = (useRes: boolean) => {
@@ -106,6 +142,9 @@ export default function HomePage() {
       updatedInputs.residualIncludesGst = false;
     }
     setInputs(updatedInputs);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseInputs', JSON.stringify(updatedInputs));
+    }
     try {
       setResults(calculateNovatedLease(updatedInputs));
     } catch (error) {
@@ -135,6 +174,9 @@ export default function HomePage() {
       updatedInputs.residualIncludesGst = calcBasis === 'residualIncl';
     }
     setInputs(updatedInputs);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseInputs', JSON.stringify(updatedInputs));
+    }
     setResults(calculateNovatedLease(updatedInputs));
   };
 
@@ -146,6 +188,13 @@ export default function HomePage() {
       maximumFractionDigits: 0,
     }).format(value);
   };
+
+  // Persist calcBasis changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseCalcBasis', calcBasis);
+    }
+  }, [calcBasis]);
 
   return (
     <main style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
@@ -303,49 +352,55 @@ export default function HomePage() {
         <div>
           <h2>Lease Calculation</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* Breakdown to Financed Amount */}
-            <div style={{ padding: '16px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>Financed Amount Calculation</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
-                <span>Driveaway Cost</span>
-                <span style={{ fontWeight: '500' }}>{formatCurrency(inputs.driveawayCost || 0)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span>Less: GST</span>
-                <span style={{ fontWeight: '500' }}>-{formatCurrency(results.gst)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span>Add: Documentation Fee</span>
-                <span style={{ fontWeight: '500' }}>+{formatCurrency(inputs.documentationFee || 0)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#e8f5e9', borderRadius: '4px', border: '2px solid #2e7d32' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Financed Amount</span>
-                <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
-              </div>
+            {/* Financed Amount Summary (green box) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#e8f5e9', borderRadius: '4px', border: '2px solid #2e7d32', marginBottom: '8px' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Financed Amount</span>
+              <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
             </div>
-            {/* Residual Values */}
-            <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd' }}>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>Residual Value Calculation</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
-                <span>Residual %</span>
-                <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
+            {/* Breakdown to Financed Amount (collapsible) */}
+            <details style={{ marginBottom: '16px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', padding: '8px 0' }}>Show calculation details</summary>
+              <div style={{ padding: '16px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
+                  <span>Driveaway Cost</span>
+                  <span style={{ fontWeight: '500' }}>{formatCurrency(inputs.driveawayCost || 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span>Less: GST</span>
+                  <span style={{ fontWeight: '500' }}>-{formatCurrency(results.gst)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span>Add: Documentation Fee</span>
+                  <span style={{ fontWeight: '500' }}>+{formatCurrency(inputs.documentationFee || 0)}</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span>Residual Value (excl GST)</span>
-                <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#999', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
-                Calculated from financed amount less fees
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span>Add: GST (10%)</span>
-                <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#e3f2fd', borderRadius: '4px', border: '2px solid #1976d2' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Residual Value (incl GST)</span>
-                <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
-              </div>
+            </details>
+            {/* Residual Value Summary (blue box) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#e3f2fd', borderRadius: '4px', border: '2px solid #1976d2', marginBottom: '8px' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Residual Value (incl GST)</span>
+              <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
             </div>
+            {/* Residual Values (collapsible) */}
+            <details style={{ marginBottom: '16px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', padding: '8px 0' }}>Show calculation details</summary>
+              <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
+                  <span>Residual %</span>
+                  <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Residual Value (excl GST)</span>
+                  <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#999', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+                  Calculated from financed amount less fees
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span>Add: GST (10%)</span>
+                  <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
+                </div>
+              </div>
+            </details>
             {/* Effective Interest Rate Result */}
             {inputs.paymentAmount && inputs.paymentsPerYear && (
               <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fffde7', borderRadius: '8px', border: '1px solid #ffe082' }}>

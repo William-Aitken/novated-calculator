@@ -112,7 +112,7 @@ export function calculateEffectiveInterestRate({
       const n = leaseTermYears * 12 - deferred;
       const pv = -(financedAmount); 
       const fv = residualExclGst;
-      const type = 0;
+      const type = 1;
       // Convert payment to equivalent monthly payment that is two months deferred
       const targetPayment = paymentAmount * (paymentsPerYear * leaseTermYears) / (12 * leaseTermYears - deferred);
 
