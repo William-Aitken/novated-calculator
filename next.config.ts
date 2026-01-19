@@ -1,11 +1,7 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
-    webpack: (config) => {
-        return config; // ensures Webpack is used (not Turbopack)
-          },
-          };
+  turbopack: {},
+};
 
-          export default nextConfig;
-          
+export default nextConfig;

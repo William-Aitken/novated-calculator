@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { exampleCalculation } from "@utils/leaseMath";
+import { calculateNovatedLease, type NovatedLeaseInputs } from "@utils/leaseMath";
 
 export function GET() {
-  const result = exampleCalculation(5, 7);
-    return NextResponse.json({ result });
-    }
-    
+  const inputs: NovatedLeaseInputs = {
+    driveawayCost: 45000,
+    fbtBaseValue: 40000,
+    documentationFee: 500,
+    leaseTermYears: 3,
+  };
+  const result = calculateNovatedLease(inputs);
+  return NextResponse.json({ result });
+}

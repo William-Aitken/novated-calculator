@@ -1,22 +1,22 @@
 {
-      "name": "novated-calculator",
-        "version": "1.0.0",
-          "private": true,
-            "scripts": {
-                "dev": "next dev --no-turbo",
-                    "build": "next build",
-                        "start": "next start",
-                            "lint": "biome check ."
-                              },
-                                "dependencies": {
-                                    "next": "latest",
-                                        "react": "latest",
-                                            "react-dom": "latest"
-                                              },
-                                                "devDependencies": {
-                                                    "@biomejs/biome": "latest",
-                                                        "typescript": "latest"
-                                                          }
-                                                          }
-                                                          
+  "name": "novated-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@types/node": "25.0.9",
+    "@types/react": "19.2.8",
+    "typescript": "latest"
+  }
 }

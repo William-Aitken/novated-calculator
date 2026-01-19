@@ -1,5 +1,3 @@
 export function Example() {
-      return <div>Example component</div>;
-      }
-      
+  return <div>Example component</div>;
 }
