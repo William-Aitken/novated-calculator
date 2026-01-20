@@ -1,7 +1,7 @@
-'use client';
 
-import { useState, useEffect } from 'react';
-import { calculateNovatedLease, calculateEffectiveInterestRate, type NovatedLeaseInputs } from '@/utils/leaseMath';
+  "use client";
+  import { useState, useEffect } from 'react';
+  import { calculateNovatedLease, calculateEffectiveInterestRate, type NovatedLeaseInputs } from '@/utils/leaseMath';
 
 const paymentFrequencies = [
   { label: 'Weekly', value: 52 },
@@ -40,6 +40,9 @@ export default function HomePage() {
     }
     return defaultInputs;
   });
+  // Local state for editable residual value inputs
+  const [residualExclInput, setResidualExclInput] = useState<string>('');
+  const [residualInclInput, setResidualInclInput] = useState<string>('');
   const [selectedFrequency, setSelectedFrequency] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('novatedLeaseSelectedFrequency');
@@ -55,6 +58,26 @@ export default function HomePage() {
     }
     return 'driveaway';
   });
+
+  // Helper to get calculated values for each basis
+  const getCalculatedBasisValue = (basis: 'driveaway' | 'residualExcl' | 'residualIncl') => {
+    const leaseTermYears = inputs.leaseTermYears;
+    const fbtBaseValue = inputs.fbtBaseValue;
+    const gst = fbtBaseValue / 11;
+    const documentationFee = inputs.documentationFee || 0;
+    const minValue = Math.min(fbtBaseValue / 11, 6334);
+    const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
+    const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
+    if (basis === 'driveaway') {
+      return inputs.driveawayCost || '';
+    } else if (basis === 'residualExcl') {
+      return (residualPercent * (financedAmount - documentationFee)).toFixed(2);
+    } else if (basis === 'residualIncl') {
+      const residualExcl = residualPercent * (financedAmount - documentationFee);
+      return (residualExcl * 1.1).toFixed(2);
+    }
+    return '';
+  };
 
   const [results, setResults] = useState(calculateNovatedLease(inputs));
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -121,10 +144,10 @@ export default function HomePage() {
     if (calcBasis === 'driveaway') {
       updatedInputs.driveawayCost = value;
     } else if (calcBasis === 'residualExcl') {
-      // driveawayCost = (residualExcl / residualPercent) + gst
+      setResidualExclInput(value ? String(value) : '');
       updatedInputs.driveawayCost = Math.round((value / residualPercent) + gst);
     } else if (calcBasis === 'residualIncl') {
-      // driveawayCost = ((residualIncl / 1.1) / residualPercent) + gst
+      setResidualInclInput(value ? String(value) : '');
       updatedInputs.driveawayCost = Math.round(((value / 1.1) / residualPercent) + gst);
     }
     setInputs(updatedInputs);
@@ -156,23 +179,11 @@ export default function HomePage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginTop: '32px' }}>
         {/* Input Section */}
         <div>
-          <h2>Vehicle Details</h2>
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* FBT Base Value at the top */}
-            <div>
-              <label>
-                FBT Base Value (excl on-roads) (AUD) *
-                <input
-                  type="number"
-                  value={inputs.fbtBaseValue}
-                  onChange={(e) => handleInputChange('fbtBaseValue', Number(e.target.value))}
-                  style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-                />
-              </label>
-            </div>
-            {/* Lease Term */}
-            <div>
-              <label>
+          <h2>Lease Details</h2>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            {/* Lease Term at the top */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
                 Lease Term (Years) *
                 <input
                   type="number"
@@ -181,142 +192,147 @@ export default function HomePage() {
                   min="1"
                   max="7"
                   step="1"
-                  style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
+                />
+              </label>
+            </div>
+            {/* Vehicle Value Section */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
+                FBT Base Value (excl on-roads) (AUD) *
+                <input
+                  type="number"
+                  value={inputs.fbtBaseValue}
+                  onChange={(e) => handleInputChange('fbtBaseValue', Number(e.target.value))}
+                  style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                 />
               </label>
             </div>
             {/* Calculation Basis Dropdown and Inputs */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-              <label style={{ flex: 1 }}>
-                <span>Calculate using</span>
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <label htmlFor="calc-basis-select" style={{ fontWeight: 500, color: '#222', marginBottom: '2px', fontSize: '15px' }}>Calculate using</label>
                 <select
+                  id="calc-basis-select"
                   value={calcBasis}
                   onChange={e => {
                     const newBasis = e.target.value as 'driveaway' | 'residualExcl' | 'residualIncl';
-                    if ((calcBasis === 'driveaway') && (newBasis === 'residualExcl' || newBasis === 'residualIncl')) {
-                      // Calculate the residual value that matches the current driveaway price
-                      const leaseTermYears = inputs.leaseTermYears;
-                      const fbtBaseValue = inputs.fbtBaseValue;
-                      const gst = fbtBaseValue / 11;
-                      const documentationFee = inputs.documentationFee || 0;
-                      const financedAmount = (inputs.driveawayCost || 0) - gst + documentationFee;
-                      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
-                      let residualExcl = Math.round(financedAmount * residualPercent * 100) / 100;
-                      let residualValue = residualExcl;
-                      let residualIncludesGst = false;
-                      if (newBasis === 'residualIncl') {
-                        residualValue = Math.round(residualExcl * 1.1 * 100) / 100;
-                        residualIncludesGst = true;
-                      }
-                      setInputs(prev => {
-                        const updated = {
-                          ...prev,
-                          residualValue,
-                          residualIncludesGst,
-                          driveawayCost: undefined,
-                        };
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('novatedLeaseInputs', JSON.stringify(updated));
-                        }
-                        return updated;
-                      });
-                    }
                     setCalcBasis(newBasis);
+                    // Set the input field to the calculated value for the new basis
+                    if (newBasis === 'residualExcl') {
+                      setResidualExclInput(getCalculatedBasisValue('residualExcl'));
+                    } else if (newBasis === 'residualIncl') {
+                      setResidualInclInput(getCalculatedBasisValue('residualIncl'));
+                    }
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('novatedLeaseCalcBasis', newBasis);
+                    }
                   }}
-                  style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid #1976d2',
+                    borderRadius: '8px',
+                    background: '#fff',
+                    color: 'inherit',
+                    fontWeight: 500,
+                    fontSize: '15px',
+                    appearance: 'auto',
+                    outline: 'none',
+                    boxShadow: '0 1px 4px rgba(25, 118, 210, 0.07)',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
                 >
                   {calculationBases.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-              </label>
+              </div>
               {calcBasis === 'driveaway' && (
-                <label style={{ flex: 1 }}>
+                <label style={{ flex: 1, fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Driveaway Cost (AUD) *
                   <input
                     type="number"
                     value={inputs.driveawayCost || ''}
                     onChange={e => handleBasisInputChange(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                   />
                 </label>
               )}
               {calcBasis === 'residualExcl' && (
-                <label style={{ flex: 1 }}>
+                <label style={{ flex: 1, fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Residual Value (excl GST) *
                   <input
                     type="number"
-                    value={(() => {
-                      // Calculate the residual value from driveawayCost for display
-                      const leaseTermYears = inputs.leaseTermYears;
-                      const fbtBaseValue = inputs.fbtBaseValue;
-                      const gst = fbtBaseValue / 11;
-                      const documentationFee = inputs.documentationFee || 0;
-                      const minValue = Math.min(fbtBaseValue / 11, 6334);
-                      const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
-                      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
-                      return (residualPercent * (financedAmount - documentationFee)).toFixed(2);
-                    })()}
+                    value={residualExclInput}
                     onChange={e => handleBasisInputChange(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                   />
                 </label>
               )}
               {calcBasis === 'residualIncl' && (
-                <label style={{ flex: 1 }}>
+                <label style={{ flex: 1, fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Residual Value (incl GST) *
                   <input
                     type="number"
-                    value={(() => {
-                      // Calculate the residual value (incl GST) from driveawayCost for display
-                      const leaseTermYears = inputs.leaseTermYears;
-                      const fbtBaseValue = inputs.fbtBaseValue;
-                      const gst = fbtBaseValue / 11;
-                      const documentationFee = inputs.documentationFee || 0;
-                      const minValue = Math.min(fbtBaseValue / 11, 6334);
-                      const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
-                      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
-                      const residualExcl = residualPercent * (financedAmount - documentationFee);
-                      return (residualExcl * 1.1).toFixed(2);
-                    })()}
+                    value={residualInclInput}
                     onChange={e => handleBasisInputChange(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                   />
                 </label>
               )}
+
             </div>
-            {/* Optional Documentation Fee */}
-            <div>
-              <label>
+            {/* Documentation Fee Section */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
                 Documentation Fee (AUD)
                 <input
                   type="number"
                   value={inputs.documentationFee || 0}
                   onChange={(e) => handleInputChange('documentationFee', Number(e.target.value))}
-                  style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                  style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                 />
               </label>
             </div>
-            {/* Payment Amount and Frequency (side by side) */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+            {/* Payment Section */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '20px' }}>
               <div style={{ flex: 1 }}>
-                <label>
+                <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Payment Amount (AUD)
                   <input
                     type="number"
                     value={inputs.paymentAmount || ''}
                     onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '8px' }}
                   />
                 </label>
               </div>
               <div style={{ flex: 1 }}>
-                <label>
+                <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Frequency
                   <select
                     value={selectedFrequency}
                     onChange={handleFrequencyChange}
-                    style={{ width: '100%', padding: '8px', marginTop: '4px' }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      marginTop: '4px',
+                      border: '1.5px solid #1976d2',
+                      borderRadius: '8px',
+                      background: '#fff',
+                      color: 'inherit',
+                      fontWeight: 500,
+                      fontSize: '15px',
+                      appearance: 'auto',
+                      outline: 'none',
+                      boxShadow: '0 1px 4px rgba(25, 118, 210, 0.07)',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
+                    onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
                   >
                     {paymentFrequencies.map((freq) => (
                       <option key={freq.value} value={freq.value}>{freq.label}</option>
@@ -338,7 +354,7 @@ export default function HomePage() {
             {/* Months Deferred (advanced, hidden by default) */}
             {showAdvanced && (
               <div style={{ maxWidth: '120px', marginTop: '8px' }}>
-                <label>
+                <label style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>
                   Months Deferred
                   <input
                     type="number"
@@ -347,7 +363,7 @@ export default function HomePage() {
                     max="12"
                     step="1"
                     onChange={(e) => handleInputChange('monthsDeferred', Number(e.target.value))}
-                    style={{ width: '100%', padding: '6px', marginTop: '4px', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '6px', marginTop: '4px', fontSize: '14px', borderRadius: '8px' }}
                   />
                 </label>
               </div>
@@ -358,10 +374,11 @@ export default function HomePage() {
         <div>
           <h2>Lease Calculation</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* Financed Amount Grouped Section */}
+            {/* Calculation Details and Residual Grouped Section */}
+            {/* Financed Amount Section */}
             <div style={{ marginBottom: '10px' }}>
               <details style={{ marginBottom: '4px' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show calculation details</summary>
+                <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show Financed Amount Breakdown</summary>
                 <div style={{ padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee', marginTop: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
                     <span>Driveaway Cost</span>
@@ -382,27 +399,33 @@ export default function HomePage() {
                 <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
               </div>
             </div>
-            {/* Residual Values (collapsible) */}
-            <details style={{ marginBottom: '16px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', padding: '8px 0' }}>Show calculation details</summary>
-              <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
-                  <span>Residual %</span>
-                  <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
+            {/* Residual Calculation Grouped Section (matches Financed Amount style) */}
+            <div style={{ marginBottom: '10px' }}>
+              <details style={{ marginBottom: '4px' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show Residual Breakdown</summary>
+                <div style={{ padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
+                    <span>Residual %</span>
+                    <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span>Residual Value (excl GST)</span>
+                    <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
+                    Calculated from financed amount less fees
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span>Add: GST (10%)</span>
+                    <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span>Residual Value (excl GST)</span>
-                  <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#999', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
-                  Calculated from financed amount less fees
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <span>Add: GST (10%)</span>
-                  <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
-                </div>
+              </details>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f6fafd', borderRadius: '4px', border: '2px solid #1976d2' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Residual Value (incl GST)</span>
+                <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
               </div>
-            </details>
+            </div>
             {/* Effective Interest Rate Result */}
             {inputs.paymentAmount && inputs.paymentsPerYear && (
               <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fffde7', borderRadius: '8px', border: '1px solid #ffe082' }}>
