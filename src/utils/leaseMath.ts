@@ -2,6 +2,8 @@ export interface NovatedLeaseInputs {
       leaseTermYears: number;
       fbtBaseValue: number;
       driveawayCost?: number; // Always the main input, can be calculated from residual
+      residualExcl?: number;
+      residualIncl?: number;
       documentationFee?: number;
       financedAmountManual?: number;
       paymentAmount?: number;
