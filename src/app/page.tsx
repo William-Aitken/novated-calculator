@@ -93,11 +93,6 @@ export default function HomePage() {
     ) {
       calcInputs.financedAmountManual = value as number;
     }
-    if (
-      field === 'residualValueManual' && typeof value === 'number' && !isNaN(value)
-    ) {
-      calcInputs.residualValueManual = value as number;
-    }
     setResults(calculateNovatedLease(calcInputs));
   };
 
