@@ -1,15 +1,12 @@
 export interface NovatedLeaseInputs {
-      leaseTermYears: number; // Required: Lease term in years
-      fbtBaseValue: number; // Required: FBT base value
-      driveawayCost?: number; // Optional: Either driveawayCost or residual value
-      residualValue?: number; // Optional: Residual value (excl GST if residualIncludesGst is false)
-      residualIncludesGst?: boolean; // Optional: Whether residual value includes GST (default: false)
-      documentationFee?: number; // Optional: Documentation fee (default: 0)
-      financedAmountManual?: number; // Optional: Manual override for financed amount
-      residualValueManual?: number; // Optional: Manual override for residual value
-      paymentAmount?: number; // Optional: Payment amount for effective interest rate calculation
-      paymentsPerYear?: number; // Optional: Number of payments per year
-      monthsDeferred?: number; // Optional: Number of months deferred
+      leaseTermYears: number;
+      fbtBaseValue: number;
+      driveawayCost?: number; // Always the main input, can be calculated from residual
+      documentationFee?: number;
+      financedAmountManual?: number;
+      paymentAmount?: number;
+      paymentsPerYear?: number;
+      monthsDeferred?: number;
 }
 
 export interface NovatedLeaseResults {
@@ -21,64 +18,25 @@ export interface NovatedLeaseResults {
 }
 
 export function calculateNovatedLease(inputs: NovatedLeaseInputs): NovatedLeaseResults {
-      if (!inputs.driveawayCost && !inputs.residualValue) {
-            throw new Error('Either driveawayCost or residualValue must be provided');
-      }
-      // Use manual overrides if provided
-      const hasManualFinanced = typeof inputs.financedAmountManual === 'number' && !isNaN(inputs.financedAmountManual);
-      const hasManualResidual = typeof inputs.residualValueManual === 'number' && !isNaN(inputs.residualValueManual);
-
-      if (!inputs.driveawayCost && !inputs.residualValue && !hasManualFinanced && !hasManualResidual) {
-            throw new Error('Either driveawayCost, residualValue, or manual override must be provided');
-      }
-
-      const gst = inputs.fbtBaseValue / 11; // 10% FBT on base value
-      const documentationFee = inputs.documentationFee || 0;
-      const residualIncludesGst = inputs.residualIncludesGst || false;
-
-      // Residual % = round(65.63%/7*(8-leaseTermYears),4)
-      const residualPercent = Math.round((0.6563 / 7) * (8 - inputs.leaseTermYears) * 10000) / 10000;
-
-      let financedAmount: number = 0;
-      let residualExclGst: number = 0;
-
-      if (inputs.driveawayCost !== undefined) {
-            // Calculate from driveawayCost
-            // Financed amount = driveawayCost - min(fbtBaseValue/11, 6334) + documentationFee
-            const minValue = Math.min(inputs.fbtBaseValue / 11, 6334);
-            financedAmount = inputs.driveawayCost - minValue + documentationFee;
-            // Residual (excl gst) = residualPercent * (financedAmount - documentationFee)
-            residualExclGst = residualPercent * (financedAmount - documentationFee);
-      } else {
-            // Calculate from residual value
-            residualExclGst = residualIncludesGst
-                  ? inputs.residualValue! / 1.1
-                  : inputs.residualValue!;
-            // Work backwards to find driveawayCost
-            // residualExclGst = residualPercent * (financedAmount - documentationFee)
-            // financedAmount = (residualExclGst / residualPercent) + documentationFee
-            financedAmount = residualExclGst / residualPercent + documentationFee;
-      }
-      if (hasManualFinanced) {
-            financedAmount = inputs.financedAmountManual!;
-            // Residual (excl gst) = residualPercent * (financedAmount - documentationFee)
-            residualExclGst = residualPercent * (financedAmount - documentationFee);
-      } else if (hasManualResidual) {
-            residualExclGst = residualIncludesGst
-                  ? inputs.residualValueManual! / 1.1
-                  : inputs.residualValueManual!;
-            financedAmount = residualExclGst / residualPercent + documentationFee;
-      }
-      // Residual incl gst = residualExclGst * 1.1
-      const residualInclGst = residualExclGst * 1.1;
-
-      return {
-            gst,
-            financedAmount,
-            residualPercent,
-            residualExclGst,
-            residualInclGst,
-      };
+  if (typeof inputs.driveawayCost !== 'number' || isNaN(inputs.driveawayCost)) {
+    throw new Error('driveawayCost must be provided');
+  }
+  const gst = inputs.fbtBaseValue / 11;
+  const documentationFee = inputs.documentationFee || 0;
+  const residualPercent = Math.round((0.6563 / 7) * (8 - inputs.leaseTermYears) * 10000) / 10000;
+  // Financed amount = driveawayCost - min(fbtBaseValue/11, 6334) + documentationFee
+  const minValue = Math.min(inputs.fbtBaseValue / 11, 6334);
+  const financedAmount = inputs.driveawayCost - minValue + documentationFee;
+  // Residual (excl gst) = residualPercent * (financedAmount - documentationFee)
+  const residualExclGst = residualPercent * (financedAmount - documentationFee);
+  const residualInclGst = residualExclGst * 1.1;
+  return {
+    gst,
+    financedAmount,
+    residualPercent,
+    residualExclGst,
+    residualInclGst,
+  };
 }
 
 // Calculate payment using PMT formula

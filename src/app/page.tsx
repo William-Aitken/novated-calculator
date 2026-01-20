@@ -23,7 +23,6 @@ export default function HomePage() {
     fbtBaseValue: 47527,
     documentationFee: 0,
     leaseTermYears: 2,
-    residualIncludesGst: false,
     paymentAmount: 0,
     paymentsPerYear: 12,
     monthsDeferred: 2,
@@ -115,63 +114,23 @@ export default function HomePage() {
     });
   };
 
-  const handleToggleMode = (useRes: boolean) => {
-    setUseResidual(useRes);
-    const updatedInputs = { ...inputs };
-    if (useRes) {
-      // Switching to residual mode - calculate residual from current driveaway cost
-      if (updatedInputs.driveawayCost !== undefined) {
-        // Use current results to set residual value
-        updatedInputs.residualValue = Math.round(results.residualExclGst * 100) / 100; // Use excl GST value
-        updatedInputs.residualIncludesGst = false;
-      }
-      delete updatedInputs.driveawayCost;
-    } else {
-      // Switching to driveaway mode - calculate driveaway from current residual
-      if (updatedInputs.residualValue !== undefined) {
-        // Work backwards from residual to get a reasonable driveaway cost estimate
-        const residualExcl = updatedInputs.residualIncludesGst
-          ? updatedInputs.residualValue / 1.1
-          : updatedInputs.residualValue;
-        const residualPercent = Math.round((0.6563 / 7) * (8 - updatedInputs.leaseTermYears) * 10000) / 10000;
-        const gst = updatedInputs.fbtBaseValue / 11;
-        const estimatedDriveaway = (residualExcl / residualPercent) + gst;
-        updatedInputs.driveawayCost = Math.round(estimatedDriveaway);
-      }
-      delete updatedInputs.residualValue;
-      updatedInputs.residualIncludesGst = false;
-    }
-    setInputs(updatedInputs);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('novatedLeaseInputs', JSON.stringify(updatedInputs));
-    }
-    try {
-      setResults(calculateNovatedLease(updatedInputs));
-    } catch (error) {
-      console.error('Calculation error:', error);
-    }
-  };
+  // handleToggleMode is no longer needed and can be removed
 
-  // Update driveawayCost if user selects a residual basis and enters a value
+  // Update driveawayCost if user enters a value in any basis
   const handleBasisInputChange = (value: number) => {
     let updatedInputs = { ...inputs };
+    const leaseTermYears = updatedInputs.leaseTermYears;
+    const fbtBaseValue = updatedInputs.fbtBaseValue;
+    const gst = fbtBaseValue / 11;
+    const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
     if (calcBasis === 'driveaway') {
       updatedInputs.driveawayCost = value;
-    } else {
-      // Calculate driveawayCost from residual value
-      const documentationFee = updatedInputs.documentationFee || 0;
-      const leaseTermYears = updatedInputs.leaseTermYears;
-      const fbtBaseValue = updatedInputs.fbtBaseValue;
-      const gst = fbtBaseValue / 11;
-      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
-      let residualExcl = value;
-      if (calcBasis === 'residualIncl') {
-        residualExcl = value / 1.1;
-      }
+    } else if (calcBasis === 'residualExcl') {
       // driveawayCost = (residualExcl / residualPercent) + gst
-      updatedInputs.driveawayCost = Math.round((residualExcl / residualPercent) + gst);
-      updatedInputs.residualValue = calcBasis === 'residualIncl' ? residualExcl : value;
-      updatedInputs.residualIncludesGst = calcBasis === 'residualIncl';
+      updatedInputs.driveawayCost = Math.round((value / residualPercent) + gst);
+    } else if (calcBasis === 'residualIncl') {
+      // driveawayCost = ((residualIncl / 1.1) / residualPercent) + gst
+      updatedInputs.driveawayCost = Math.round(((value / 1.1) / residualPercent) + gst);
     }
     setInputs(updatedInputs);
     if (typeof window !== 'undefined') {
@@ -292,7 +251,17 @@ export default function HomePage() {
                   Residual Value (excl GST) *
                   <input
                     type="number"
-                    value={inputs.residualValue || ''}
+                    value={(() => {
+                      // Calculate the residual value from driveawayCost for display
+                      const leaseTermYears = inputs.leaseTermYears;
+                      const fbtBaseValue = inputs.fbtBaseValue;
+                      const gst = fbtBaseValue / 11;
+                      const documentationFee = inputs.documentationFee || 0;
+                      const minValue = Math.min(fbtBaseValue / 11, 6334);
+                      const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
+                      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
+                      return (residualPercent * (financedAmount - documentationFee)).toFixed(2);
+                    })()}
                     onChange={e => handleBasisInputChange(Number(e.target.value))}
                     style={{ width: '100%', padding: '8px', marginTop: '4px' }}
                   />
@@ -303,7 +272,18 @@ export default function HomePage() {
                   Residual Value (incl GST) *
                   <input
                     type="number"
-                    value={inputs.residualValue ? (inputs.residualValue * 1.1).toFixed(2) : ''}
+                    value={(() => {
+                      // Calculate the residual value (incl GST) from driveawayCost for display
+                      const leaseTermYears = inputs.leaseTermYears;
+                      const fbtBaseValue = inputs.fbtBaseValue;
+                      const gst = fbtBaseValue / 11;
+                      const documentationFee = inputs.documentationFee || 0;
+                      const minValue = Math.min(fbtBaseValue / 11, 6334);
+                      const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
+                      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
+                      const residualExcl = residualPercent * (financedAmount - documentationFee);
+                      return (residualExcl * 1.1).toFixed(2);
+                    })()}
                     onChange={e => handleBasisInputChange(Number(e.target.value))}
                     style={{ width: '100%', padding: '8px', marginTop: '4px' }}
                   />
@@ -407,33 +387,27 @@ export default function HomePage() {
                 <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
               </div>
             </div>
-            {/* Residual Value Grouped Section */}
-            <div style={{ marginBottom: '10px' }}>
-              <details style={{ marginBottom: '4px' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show calculation details</summary>
-                <div style={{ padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
-                    <span>Residual %</span>
-                    <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>Residual Value (excl GST)</span>
-                    <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
-                    Calculated from financed amount less fees
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span>Add: GST (10%)</span>
-                    <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
-                  </div>
+            {/* Residual Values (collapsible) */}
+            <details style={{ marginBottom: '16px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', padding: '8px 0' }}>Show calculation details</summary>
+              <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
+                  <span>Residual %</span>
+                  <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
                 </div>
-              </details>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '4px', border: '2px solid #1976d2' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Residual Value (incl GST)</span>
-                <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Residual Value (excl GST)</span>
+                  <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#999', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+                  Calculated from financed amount less fees
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span>Add: GST (10%)</span>
+                  <span style={{ fontWeight: '500' }}>+{formatCurrency(results.residualInclGst - results.residualExclGst)}</span>
+                </div>
               </div>
-            </div>
+            </details>
             {/* Effective Interest Rate Result */}
             {inputs.paymentAmount && inputs.paymentsPerYear && (
               <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fffde7', borderRadius: '8px', border: '1px solid #ffe082' }}>
