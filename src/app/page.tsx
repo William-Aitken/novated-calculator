@@ -60,7 +60,7 @@ export default function HomePage() {
   });
 
   // Helper to get calculated values for each basis
-  const getCalculatedBasisValue = (basis: 'driveaway' | 'residualExcl' | 'residualIncl') => {
+  const getCalculatedBasisValue = (basis: 'driveaway' | 'residualExcl' | 'residualIncl'): string => {
     const leaseTermYears = inputs.leaseTermYears;
     const fbtBaseValue = inputs.fbtBaseValue;
     const gst = fbtBaseValue / 11;
@@ -69,7 +69,7 @@ export default function HomePage() {
     const financedAmount = (inputs.driveawayCost || 0) - minValue + documentationFee;
     const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
     if (basis === 'driveaway') {
-      return inputs.driveawayCost || '';
+      return inputs.driveawayCost !== undefined && inputs.driveawayCost !== null ? String(inputs.driveawayCost) : '';
     } else if (basis === 'residualExcl') {
       return (residualPercent * (financedAmount - documentationFee)).toFixed(2);
     } else if (basis === 'residualIncl') {
