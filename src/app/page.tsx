@@ -394,6 +394,9 @@ export default function HomePage() {
               </li>
               {fbtError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{fbtError}</div></li>}
 
+              <li>
+                <div style={{ height: 1, background: '#e6e9ee', margin: '6px 0' }} />
+              </li>
               <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontWeight: 500, color: '#222', fontSize: '15px', minWidth: 150 }}>Vehicle Values</span>
                 <small style={{ color: '#666', fontSize: '12px' }}>At least one required</small>
@@ -443,7 +446,9 @@ export default function HomePage() {
                 />
               </li>
               {vehicleError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{vehicleError}</div></li>}
-
+              <li>
+                <div style={{ height: 1, background: '#e6e9ee', margin: '6px 0' }} />
+              </li>
               <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                 <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Documentation Fee</span>
                 <input
@@ -748,34 +753,37 @@ export default function HomePage() {
 
             {/* Offset Account Comparison Section (moved to right column) */}
             <div style={{ marginTop: '40px', padding: '24px', border: '2px solid #bdbdbd', borderRadius: '12px', background: '#f8f9fa' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h2 style={{ color: '#1976d2', margin: 0 }}>Novated Lease vs </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                  <select
-                    value={comparisonTarget}
-                    onChange={e => {
-                      setComparisonTarget(e.target.value);
-                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonTarget', e.target.value);
-                    }}
-                    style={{
-                      width: '12ch',
-                      height: '36px',
-                      padding: '0 10px',
-                      lineHeight: '20px',
-                      border: '1px solid #e6e9ee',
-                      borderRadius: '6px',
-                      background: 'transparent',
-                      color: '#1976d2',
-                      fontWeight: 700,
-                      fontSize: '18px',
-                      appearance: 'auto',
-                    }}
-                  >
-                    <option value="offset">Offset</option>
-                    <option value="carloan">Carloan</option>
-                    <option value="hisa">HISA</option>
-                    <option value="self">Self Managed</option>
-                  </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ fontWeight: 700, fontSize: '20px', color: '#1976d2' }}>Novated Lease Comparison</div>
+                <div style={{ textAlign: 'right', fontWeight: 700, color: '#1976d2' }}>Novated Lease</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                  <div style={{ fontWeight: 700, color: '#1976d2' }}>
+                    <select
+                      value={comparisonTarget}
+                      onChange={e => {
+                        setComparisonTarget(e.target.value);
+                        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonTarget', e.target.value);
+                      }}
+                      style={{
+                        width: '9ch',
+                        height: '24px',
+                        padding: '0 5px',
+                        lineHeight: '20px',
+                        border: '1px solid #e6e9ee',
+                        borderRadius: '6px',
+                        background: 'transparent',
+                        color: '#1976d2',
+                        fontWeight: 700,
+                        fontSize: '16px',
+                        appearance: 'auto',
+                      }}
+                    >
+                      <option value="offset">Offset</option>
+                      <option value="carloan">Loan</option>
+                      <option value="hisa">HISA</option>
+                      <option value="self">BYO</option>
+                    </select>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <input
                       type="number"
@@ -787,7 +795,7 @@ export default function HomePage() {
                         if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonInterestRate', String(v));
                       }}
                       aria-label="Comparison interest rate"
-                      style={{ width: '10ch', padding: '8px', borderRadius: '8px', textAlign: 'right', fontSize: '16px', fontWeight: 600 }}
+                      style={{ width: '6ch', height: '24px', padding: '4px', borderRadius: '4px', textAlign: 'center', fontSize: '16px', fontWeight: 700, color: '#1976d2' }}
                     />
                     <span style={{ color: '#1976d2', fontWeight: 700, fontSize: '16px' }}>%</span>
                   </div>
