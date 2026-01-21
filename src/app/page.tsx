@@ -1,7 +1,7 @@
 
   "use client";
   import { useState, useEffect } from 'react';
-  import { calculateNovatedLease, calculateEffectiveInterestRate, type NovatedLeaseInputs } from '@/utils/leaseMath';
+  import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, type NovatedLeaseInputs } from '@/utils/leaseMath';
 
 const paymentFrequencies = [
   { label: 'Weekly', value: 52 },
@@ -311,6 +311,14 @@ export default function HomePage() {
     }).format(value);
   };
 
+  // Helper to render comparison column value based on comparison type
+  const getComparisonValue = (value: number | null) => {
+    if (comparisonTarget === 'self') {
+      return value !== null ? formatCurrency(value) : '--';
+    }
+    return '[' + comparisonTarget.charAt(0).toUpperCase() + comparisonTarget.slice(1) + ': --]';
+  };
+
   // Australian resident income tax (2025-26) simple slab calculation
   const calculateAUSIncomeTax = (taxableIncome: number) => {
     const x = Math.max(0, Math.floor(taxableIncome));
@@ -339,6 +347,43 @@ export default function HomePage() {
   const payPeriods = Number(inputs.paymentsPerYear || selectedFrequency || 12);
     const payLabel = paymentFrequencies.find(f => f.value === payPeriods)?.label || 'period';
     const outOfPocketPerInterval = (totalAnnualCost - taxSaved) / (payPeriods || 1);
+
+  // Calculate BYO payment
+  let byoPaymentPerPeriod: number = 0;
+  let byoAnnualPayment: number = 0;
+  if (comparisonTarget === 'self') {
+    try {
+      const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
+      const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
+      const manualResidualIncl = (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) ? Number(inputs.residualIncl) : undefined;
+
+      const financedForBYO = typeof manualFinanced === 'number' ? manualFinanced : results.financedAmount;
+      const residualForBYO = typeof manualResidualExcl === 'number' ? manualResidualExcl : (typeof manualResidualIncl === 'number' ? manualResidualIncl / 1.1 : results.residualExclGst);
+
+      byoPaymentPerPeriod = calculateBYOPayment({
+        financedAmount: financedForBYO,
+        residualExclGst: residualForBYO,
+        paymentsPerYear: inputs.paymentsPerYear || 12,
+        leaseTermYears: inputs.leaseTermYears || 0,
+        monthsDeferred: inputs.monthsDeferred,
+        interestRate: comparisonInterestRate / 100,
+      });
+
+      byoAnnualPayment = byoPaymentPerPeriod * (inputs.paymentsPerYear || 12);
+    } catch (e) {
+      console.error('BYO calculation error:', e);
+    }
+  }
+
+  // Calculate BYO tax savings
+  let byoPreTaxContribution: number = 0;
+  let byoTaxSaved: number = 0;
+  if (comparisonTarget === 'self') {
+    byoPreTaxContribution = Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm);
+    const byoTaxableAfter = Math.max(0, salaryAfterCap - byoPreTaxContribution);
+    const byoTaxAfter = calculateAUSIncomeTax(byoTaxableAfter);
+    byoTaxSaved = Math.max(0, taxBefore - byoTaxAfter);
+  }
 
   // Diff detection: compare provided inputs to calculated results
   const DIFF_THRESHOLD = 0.05; // 5%
@@ -806,32 +851,32 @@ export default function HomePage() {
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Annual finance cost</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Annual running costs</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0' }}>Total Annual cost</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts+annualPaymentAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888', fontWeight: 700 }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts + byoAnnualPayment : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Pre-tax contribution</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(preTaxContribution)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Post-tax ECM</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(postTaxEcm)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? postTaxEcm : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Tax savings</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '2px solid #1976d2' }}>
                     <td colSpan={3} style={{ fontWeight: 700, padding: '12px 0 8px 0', color: '#1976d2', fontSize: '16px' }}>
@@ -841,32 +886,32 @@ export default function HomePage() {
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Total finance cost</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Total running costs</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Total tax savings</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Residual value</td>
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? results.residualInclGst || 0 : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0' }}>Net cost over lease</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888', fontWeight: 700 }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700 }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Total excl running costs</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700, fontSize: '16px' }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) : null)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Difference to driveaway price</td>
@@ -879,7 +924,17 @@ export default function HomePage() {
                     }}>
                       {formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) - (inputs.driveawayCost || 0))}
                     </td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>
+                      {comparisonTarget === 'self' ? (() => {
+                        const byoExclRunning = (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1);
+                        const diff = byoExclRunning - (inputs.driveawayCost || 0);
+                        return (
+                          <span style={{ color: diff < 0 ? '#2e7d32' : '#c62828' }}>
+                            {formatCurrency(diff)}
+                          </span>
+                        );
+                      })() : getComparisonValue(null)}
+                    </td>
                   </tr>
                 </tbody>
               </table>

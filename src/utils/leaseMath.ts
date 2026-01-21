@@ -137,3 +137,39 @@ export function calculateEffectiveInterestRate({
       }
       return null; // No solution found
 }
+
+// Calculate BYO (Bring Your Own) payments using PMT formula
+export function calculateBYOPayment({
+      financedAmount,
+      residualExclGst,
+      paymentsPerYear,
+      leaseTermYears,
+      monthsDeferred,
+      interestRate,
+}: {
+      financedAmount: number;
+      residualExclGst: number;
+      paymentsPerYear: number;
+      leaseTermYears: number;
+      monthsDeferred?: number;
+      interestRate: number;
+}): number {
+      const deferred = typeof monthsDeferred === 'number' ? monthsDeferred : 2;
+      const n = leaseTermYears * 12 - deferred;
+      const pv = -(financedAmount);
+      const fv = residualExclGst;
+      const type = 1;
+      
+      // Monthly interest rate
+      const monthlyRate = interestRate / 12;
+      
+      // Calculate monthly payment
+      const monthlyPayment = pmt(monthlyRate, n, pv * Math.pow(1 + monthlyRate, deferred), fv, type);
+      
+      // Convert monthly payment to payment frequency using the same formula as effective interest rate
+      // The effective interest rate converts period payment to monthly: paymentAmount * (paymentsPerYear * leaseTermYears) / (12 * leaseTermYears - deferred)
+      // So to reverse it: monthlyPayment * (12 * leaseTermYears - deferred) / (paymentsPerYear * leaseTermYears)
+      const paymentPerPeriod = monthlyPayment * (12 * leaseTermYears - deferred) / (paymentsPerYear * leaseTermYears);
+      
+      return paymentPerPeriod;
+}
