@@ -39,6 +39,22 @@ export default function HomePage() {
       localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(updated));
     }
   };
+  // Is the vehicle an EV? Persisted choice for running costs
+  const [isEv, setIsEv] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseIsEv');
+      return v ? v === 'true' : false;
+    }
+    return false;
+  });
+  const [annualSalary, setAnnualSalary] = useState<number>(() => {
+    if (typeof window !== 'undefined') return Number(localStorage.getItem('novatedLeaseAnnualSalary') || 0);
+    return 0;
+  });
+  const [packageCap, setPackageCap] = useState<number>(() => {
+    if (typeof window !== 'undefined') return Number(localStorage.getItem('novatedLeasePackageCap') || 0);
+    return 0;
+  });
   const defaultInputs: NovatedLeaseInputs = {
     driveawayCost: 50000,
     residualExcl: 0,
@@ -77,6 +93,22 @@ export default function HomePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [fbtError, setFbtError] = useState<string | null>(null);
+
+  // Comparison controls (persisted)
+  const [comparisonTarget, setComparisonTarget] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('novatedLeaseComparisonTarget') || 'offset';
+    }
+    return 'offset';
+  });
+
+  const [comparisonInterestRate, setComparisonInterestRate] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseComparisonInterestRate');
+      return v ? Number(v) : 3.5;
+    }
+    return 3.5;
+  });
 
   // Calculate effective interest rate if paymentAmount and paymentsPerYear are provided
   let effectiveRate: number | null = null;
@@ -252,10 +284,32 @@ export default function HomePage() {
     }).format(value);
   };
 
+  // Australian resident income tax (2025-26) simple slab calculation
+  const calculateAUSIncomeTax = (taxableIncome: number) => {
+    const x = Math.max(0, Math.floor(taxableIncome));
+    if (x <= 18200) return x * 0.02;
+    if (x <= 45000) return 364 + (x - 18200) * 0.18;
+    if (x <= 135000) return 5188 + (x - 45000) * 0.32;
+    if (x <= 180000) return 33988 + (x - 135000) * 0.39;
+    return 55438 + (x - 190000) * 0.47;
+  };
+
   const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
-  const totalPerPeriod = totalRunningCostsPerPeriod;
-  const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
-  const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
+  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? (inputs.fbtBaseValue * 0.2 * 0.1 / (inputs.paymentsPerYear || 12)) : 0;
+  const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - (packageCap || 0) / 1.1) : 0;
+    const totalPerPeriod = totalRunningCostsPerPeriod + ecGstPerPeriod;
+    const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
+    const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
+    const totalAnnualCost = totalAnnualRunningCosts + annualPaymentAmount;
+    const preTaxContribution = Math.max(0, totalAnnualCost - postTaxEcm);
+    const salaryAfterCap = Math.max(0, annualSalary - (packageCap || 0));
+    const taxBefore = calculateAUSIncomeTax(salaryAfterCap);
+    const taxableAfter = Math.max(0, salaryAfterCap - preTaxContribution);
+    const taxAfter = calculateAUSIncomeTax(taxableAfter);
+    const taxSaved = Math.max(0, taxBefore - taxAfter);
+    const payPeriods = Number(inputs.paymentsPerYear || selectedFrequency || 12);
+    const payLabel = paymentFrequencies.find(f => f.value === payPeriods)?.label || 'period';
+    const outOfPocketPerInterval = (totalAnnualCost - taxSaved) / (payPeriods || 1);
 
   // Diff detection: compare provided inputs to calculated results
   const DIFF_THRESHOLD = 0.05; // 5%
@@ -442,9 +496,64 @@ export default function HomePage() {
                   </div>
                     )}
                   </div>
+            {/* Income / Salary Section */}
+            <div style={{ marginTop: '24px', padding: '16px', border: '1px dashed #cfd8dc', borderRadius: '10px', background: '#fbfcff' }}>
+              <h4 style={{ margin: 0, color: '#1976d2', fontSize: '15px' }}>Income</h4>
+              <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '150px auto', gap: '10px', alignItems: 'center' }}>
+                <label style={{ fontWeight: 500 }}>Annual Salary</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={annualSalary}
+                  onChange={e => {
+                    const v = Number(e.target.value) || 0;
+                    setAnnualSalary(v);
+                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseAnnualSalary', String(v));
+                  }}
+                  style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
+                />
+
+                <label style={{ fontWeight: 500 }}>Salary Package Cap</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={packageCap}
+                  onChange={e => {
+                    const v = Number(e.target.value) || 0;
+                    setPackageCap(v);
+                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeasePackageCap', String(v));
+                  }}
+                  style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
+                />
+              </div>
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '14px', color: '#222', fontWeight: 500 }}>Vehicle Type</label>
+                <select
+                  value={isEv ? 'ev' : 'non'}
+                  onChange={e => {
+                    const v = e.target.value === 'ev';
+                    setIsEv(v);
+                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', String(v));
+                  }}
+                  style={{ width: '10ch', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid #e6e9ee', fontSize: '14px', fontWeight: 600, color: '#222' }}
+                >
+                  <option value="non">Non-EV</option>
+                  <option value="ev">EV</option>
+                </select>
+              </div>
+              <div style={{ marginTop: '12px', textAlign: 'right' }}>
+                <div style={{ fontSize: '13px', color: '#666' }}>Out of pocket per interval</div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: '#1976d2' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
+              </div>
+            </div>
+
             {/* Running Costs Section */}
-            <div style={{ marginTop: '32px', padding: '20px', border: '1.5px solid #1976d2', borderRadius: '12px', background: '#f7faff' }}>
-              <h3 style={{ marginBottom: '16px', color: '#1976d2' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
+            <div style={{ marginTop: '12px', padding: '20px', border: '1.5px solid #1976d2', borderRadius: '12px', background: '#f7faff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: '#1976d2' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
+              </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Management Fee</span>
@@ -474,6 +583,12 @@ export default function HomePage() {
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Other</span>
                   <input type="number" min="0" step="1" value={runningCosts.other} onChange={e => handleRunningCostChange('other', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
+                {!isEv && (
+                  <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Employee contribution gst</span>
+                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency((inputs.fbtBaseValue || 0) * 0.2 * 0.1 / inputs.paymentsPerYear)}</div>
+                  </li>
+                )}
               </ul>
               <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ minWidth: 150, fontWeight: 600, color: '#222', fontSize: '15px' }}>Total Running Costs </span>
@@ -588,7 +703,51 @@ export default function HomePage() {
 
             {/* Offset Account Comparison Section (moved to right column) */}
             <div style={{ marginTop: '40px', padding: '24px', border: '2px solid #bdbdbd', borderRadius: '12px', background: '#f8f9fa' }}>
-              <h2 style={{ color: '#1976d2', marginBottom: '18px' }}>Novated Lease vs Offset Account</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h2 style={{ color: '#1976d2', margin: 0 }}>Novated Lease vs </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                  <select
+                    value={comparisonTarget}
+                    onChange={e => {
+                      setComparisonTarget(e.target.value);
+                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonTarget', e.target.value);
+                    }}
+                    style={{
+                      width: '12ch',
+                      height: '36px',
+                      padding: '0 10px',
+                      lineHeight: '20px',
+                      border: '1px solid #e6e9ee',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      color: '#1976d2',
+                      fontWeight: 700,
+                      fontSize: '18px',
+                      appearance: 'auto',
+                    }}
+                  >
+                    <option value="offset">Offset</option>
+                    <option value="carloan">Carloan</option>
+                    <option value="hisa">HISA</option>
+                    <option value="self">Self Managed</option>
+                  </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={comparisonInterestRate}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        setComparisonInterestRate(v);
+                        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonInterestRate', String(v));
+                      }}
+                      aria-label="Comparison interest rate"
+                      style={{ width: '10ch', padding: '8px', borderRadius: '8px', textAlign: 'right', fontSize: '16px', fontWeight: 600 }}
+                    />
+                    <span style={{ color: '#1976d2', fontWeight: 700, fontSize: '16px' }}>%</span>
+                  </div>
+                </div>
+              </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
                 <tbody>
                   <tr>
@@ -608,17 +767,22 @@ export default function HomePage() {
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Pre-tax contribution</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>--</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(preTaxContribution)}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Post-tax ECM</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>--</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(postTaxEcm)}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Out of pocket per pay</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>--</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Tax savings</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Out of pocket</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency((outOfPocketPerInterval || 0)*(payPeriods || 1))}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
                 </tbody>
