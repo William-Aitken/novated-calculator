@@ -586,7 +586,7 @@ export default function HomePage() {
                 {!isEv && (
                   <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                     <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Employee contribution gst</span>
-                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency((inputs.fbtBaseValue || 0) * 0.2 * 0.1 / inputs.paymentsPerYear)}</div>
+                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency((inputs.fbtBaseValue || 0) * 0.2 * 0.1 / (inputs.paymentsPerYear || 12))}</div>
                   </li>
                 )}
               </ul>
