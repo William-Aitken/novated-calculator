@@ -14,28 +14,49 @@ const paymentFrequencies = [
 
 export default function HomePage() {
   // Running costs state
-  const [runningCosts, setRunningCosts] = useState(() => {
+  // Running costs state (fields may be empty/undefined)
+  type RunningCosts = {
+    managementFee?: number;
+    maintenance?: number;
+    tyres?: number;
+    rego?: number;
+    insurance?: number;
+    chargingFuel?: number;
+    other?: number;
+  };
+
+  const defaultRunningCosts: RunningCosts = { managementFee: undefined, maintenance: undefined, tyres: undefined, rego: undefined, insurance: undefined, chargingFuel: undefined, other: undefined };
+
+  const [runningCosts, setRunningCosts] = useState<RunningCosts>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('novatedLeaseRunningCosts');
       if (saved) {
         try {
-          return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0, ...JSON.parse(saved) };
+          const parsed = JSON.parse(saved || '{}');
+          const normalized: RunningCosts = { ...defaultRunningCosts };
+          Object.keys(normalized).forEach((k) => {
+            const val = (parsed as any)[k];
+            normalized[k as keyof RunningCosts] = (val === null || val === undefined || val === '') ? undefined : Number(val);
+          });
+          return normalized;
         } catch {
-          return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0 };
+          return defaultRunningCosts;
         }
       }
     }
-    return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0 };
+    return defaultRunningCosts;
   });
 
   // Sum of running cost inputs (treated as amounts per selected payment period)
   const totalRunningCostsPerPeriod = Object.values(runningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0);
 
   // Handler for running costs
-  const handleRunningCostChange = (field: keyof typeof runningCosts, value: number) => {
+  // Handler for running costs (allow empty/undefined)
+  const handleRunningCostChange = (field: keyof RunningCosts, value: number | undefined) => {
     const updated = { ...runningCosts, [field]: value };
     setRunningCosts(updated);
     if (typeof window !== 'undefined') {
+      // Save as JSON; undefined fields will be omitted
       localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(updated));
     }
   };
@@ -47,13 +68,19 @@ export default function HomePage() {
     }
     return false;
   });
-  const [annualSalary, setAnnualSalary] = useState<number>(() => {
-    if (typeof window !== 'undefined') return Number(localStorage.getItem('novatedLeaseAnnualSalary') || 0);
-    return 0;
+  const [annualSalary, setAnnualSalary] = useState<number | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseAnnualSalary');
+      return v === null || v === '' ? undefined : Number(v);
+    }
+    return undefined;
   });
-  const [packageCap, setPackageCap] = useState<number>(() => {
-    if (typeof window !== 'undefined') return Number(localStorage.getItem('novatedLeasePackageCap') || 0);
-    return 0;
+  const [packageCap, setPackageCap] = useState<number | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeasePackageCap');
+      return v === null || v === '' ? undefined : Number(v);
+    }
+    return undefined;
   });
   const defaultInputs: NovatedLeaseInputs = {
     driveawayCost: 50000,
@@ -296,18 +323,20 @@ export default function HomePage() {
 
   const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
   const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? (inputs.fbtBaseValue * 0.2 * 0.1 / (inputs.paymentsPerYear || 12)) : 0;
-  const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - (packageCap || 0) / 1.1) : 0;
-    const totalPerPeriod = totalRunningCostsPerPeriod + ecGstPerPeriod;
-    const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
-    const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
-    const totalAnnualCost = totalAnnualRunningCosts + annualPaymentAmount;
-    const preTaxContribution = Math.max(0, totalAnnualCost - postTaxEcm);
-    const salaryAfterCap = Math.max(0, annualSalary - (packageCap || 0));
-    const taxBefore = calculateAUSIncomeTax(salaryAfterCap);
-    const taxableAfter = Math.max(0, salaryAfterCap - preTaxContribution);
-    const taxAfter = calculateAUSIncomeTax(taxableAfter);
-    const taxSaved = Math.max(0, taxBefore - taxAfter);
-    const payPeriods = Number(inputs.paymentsPerYear || selectedFrequency || 12);
+  const annualSalaryNum = Number(annualSalary) || 0;
+  const packageCapNum = Number(packageCap) || 0;
+  const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - packageCapNum / 1.1) : 0;
+  const totalPerPeriod = totalRunningCostsPerPeriod + ecGstPerPeriod;
+  const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
+  const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
+  const totalAnnualCost = totalAnnualRunningCosts + annualPaymentAmount;
+  const preTaxContribution = Math.max(0, totalAnnualCost - postTaxEcm);
+  const salaryAfterCap = Math.max(0, annualSalaryNum - packageCapNum);
+  const taxBefore = calculateAUSIncomeTax(salaryAfterCap);
+  const taxableAfter = Math.max(0, salaryAfterCap - preTaxContribution);
+  const taxAfter = calculateAUSIncomeTax(taxableAfter);
+  const taxSaved = Math.max(0, taxBefore - taxAfter);
+  const payPeriods = Number(inputs.paymentsPerYear || selectedFrequency || 12);
     const payLabel = paymentFrequencies.find(f => f.value === payPeriods)?.label || 'period';
     const outOfPocketPerInterval = (totalAnnualCost - taxSaved) / (payPeriods || 1);
 
@@ -333,7 +362,7 @@ export default function HomePage() {
   return (
     <main style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
       <h1>Novated Lease Calculator</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginTop: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '40% 60%', gap: '32px', marginTop: '32px' }}>
         {/* Input Section */}
         <div>
           <h2>Lease Details</h2>
@@ -505,11 +534,14 @@ export default function HomePage() {
                   type="number"
                   min="0"
                   step="100"
-                  value={annualSalary}
+                  value={annualSalary ?? ''}
                   onChange={e => {
-                    const v = Number(e.target.value) || 0;
+                    const v = e.target.value === '' ? undefined : Number(e.target.value);
                     setAnnualSalary(v);
-                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseAnnualSalary', String(v));
+                    if (typeof window !== 'undefined') {
+                      if (v === undefined) localStorage.removeItem('novatedLeaseAnnualSalary');
+                      else localStorage.setItem('novatedLeaseAnnualSalary', String(v));
+                    }
                   }}
                   style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
                 />
@@ -519,11 +551,14 @@ export default function HomePage() {
                   type="number"
                   min="0"
                   step="100"
-                  value={packageCap}
+                  value={packageCap ?? ''}
                   onChange={e => {
-                    const v = Number(e.target.value) || 0;
+                    const v = e.target.value === '' ? undefined : Number(e.target.value);
                     setPackageCap(v);
-                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeasePackageCap', String(v));
+                    if (typeof window !== 'undefined') {
+                      if (v === undefined) localStorage.removeItem('novatedLeasePackageCap');
+                      else localStorage.setItem('novatedLeasePackageCap', String(v));
+                    }
                   }}
                   style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
                 />
@@ -543,10 +578,6 @@ export default function HomePage() {
                   <option value="ev">EV</option>
                 </select>
               </div>
-              <div style={{ marginTop: '12px', textAlign: 'right' }}>
-                <div style={{ fontSize: '13px', color: '#666' }}>Out of pocket per interval</div>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: '#1976d2' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
-              </div>
             </div>
 
             {/* Running Costs Section */}
@@ -557,31 +588,31 @@ export default function HomePage() {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Management Fee</span>
-                  <input type="number" min="0" step="1" value={runningCosts.managementFee} onChange={e => handleRunningCostChange('managementFee', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.managementFee ?? ''} onChange={e => handleRunningCostChange('managementFee', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Maintenance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.maintenance} onChange={e => handleRunningCostChange('maintenance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.maintenance ?? ''} onChange={e => handleRunningCostChange('maintenance', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Tyres</span>
-                  <input type="number" min="0" step="1" value={runningCosts.tyres} onChange={e => handleRunningCostChange('tyres', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.tyres ?? ''} onChange={e => handleRunningCostChange('tyres', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Rego</span>
-                  <input type="number" min="0" step="1" value={runningCosts.rego} onChange={e => handleRunningCostChange('rego', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.rego ?? ''} onChange={e => handleRunningCostChange('rego', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Insurance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.insurance} onChange={e => handleRunningCostChange('insurance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.insurance ?? ''} onChange={e => handleRunningCostChange('insurance', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Charging/Fuel</span>
-                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel} onChange={e => handleRunningCostChange('chargingFuel', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel ?? ''} onChange={e => handleRunningCostChange('chargingFuel', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Other</span>
-                  <input type="number" min="0" step="1" value={runningCosts.other} onChange={e => handleRunningCostChange('other', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.other ?? ''} onChange={e => handleRunningCostChange('other', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 {!isEv && (
                   <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
@@ -595,6 +626,20 @@ export default function HomePage() {
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 600 }}>{formatCurrency(totalPerPeriod)} / {runningCostsFrequencyLabel}</div>
                   <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency(totalAnnualRunningCosts)} pa</div>
+                </div>
+              </div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ minWidth: 150, fontWeight: 700, color: '#1976d2', fontSize: '16px' }}>Total Lease</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 700, color: '#1976d2', fontSize: '16px' }}>{formatCurrency(totalPerPeriod + (Number(inputs.paymentAmount) || 0))} / {runningCostsFrequencyLabel}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency(totalAnnualCost)} pa</div>
+                </div>
+              </div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ minWidth: 150, fontWeight: 700, color: '#222', fontSize: '15px' }}>Out of pocket</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 700, fontSize: '16px' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency((outOfPocketPerInterval || 0)*(payPeriods || 1))} pa</div>
                 </div>
               </div>
             </div>
@@ -780,9 +825,52 @@ export default function HomePage() {
                     <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
+                  <tr style={{ borderTop: '2px solid #1976d2' }}>
+                    <td colSpan={3} style={{ fontWeight: 700, padding: '12px 0 8px 0', color: '#1976d2', fontSize: '16px' }}>
+                      Costs over {inputs.leaseTermYears || 0} year lease
+                    </td>
+                  </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Out of pocket</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency((outOfPocketPerInterval || 0)*(payPeriods || 1))}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total finance cost</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount * (inputs.leaseTermYears || 0))}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total running costs</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total tax savings</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved * (inputs.leaseTermYears || 0))}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Residual value</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr style={{ borderTop: '1px solid #ddd' }}>
+                    <td style={{ fontWeight: 700, padding: '8px 0' }}>Net cost over lease</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0))}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888', fontWeight: 700 }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total excl running costs</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700, fontSize: '16px' }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1))}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Difference to driveaway price</td>
+                    <td style={{ 
+                      textAlign: 'right', 
+                      padding: '8px 0', 
+                      fontWeight: 700, 
+                      fontSize: '16px',
+                      color: ((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) - (inputs.driveawayCost || 0)) < 0 ? '#2e7d32' : '#c62828'
+                    }}>
+                      {formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) - (inputs.driveawayCost || 0))}
+                    </td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
                 </tbody>
