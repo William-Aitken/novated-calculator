@@ -194,6 +194,7 @@ export default function HomePage() {
   const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
   const totalPerPeriod = totalRunningCostsPerPeriod;
   const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
+  const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
 
 
 
@@ -204,10 +205,11 @@ export default function HomePage() {
         {/* Input Section */}
         <div>
           <h2>Lease Details</h2>
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div style={{ padding: '0 20px', border: '1px solid #eee', borderRadius: '12px', background: '#fff' }}>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {/* Main Inputs as Tight List with Left Labels */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
                 <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Lease Term (years)</span>
                 <input
                   type="number"
@@ -216,180 +218,172 @@ export default function HomePage() {
                   step={1}
                   value={inputs.leaseTermYears || ''}
                   onChange={e => handleInputChange('leaseTermYears', Number(e.target.value))}
-                  style={{ flex: 1, padding: '6px', borderRadius: '8px' }}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                 />
               </li>
-              <li style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>FBT Base Value*</span>
-                  <input
-                    type="number"
-                    value={inputs.fbtBaseValue || ''}
-                    onChange={e => handleInputChange('fbtBaseValue', Number(e.target.value))}
-                    style={{ flex: 1, padding: '6px', borderRadius: '8px' }}
-                  />
-                </div>
-                {fbtError && <div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{fbtError}</div>}
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>FBT Base Value*</span>
+                <input
+                  type="number"
+                  value={inputs.fbtBaseValue || ''}
+                  onChange={e => handleInputChange('fbtBaseValue', Number(e.target.value))}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                />
               </li>
-              {/* Group: Driveaway and Residuals (at least one required) */}
-              <li>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 500, color: '#222', fontSize: '15px', minWidth: 150 }}>Vehicle Values</span>
-                    <small style={{ color: '#666', fontSize: '12px' }}>At least one required</small>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ minWidth: 150 }}>Driveaway Cost (AUD)</span>
-           
-                      <input
-                        placeholder="Driveaway Cost"
-                        type="number"
-                        value={inputs.driveawayCost || ''}
-                        onChange={e => handleInputChange('driveawayCost', Number(e.target.value))}
-                        style={{ flex: 1, padding: '6px', borderRadius: '6px' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ minWidth: 150 }}>Residual (excl GST)</span>
-                      <input
-                        placeholder="Residual (excl GST)"
-                        type="number"
-                        value={inputs.residualExcl || ''}
-                        onChange={e => handleInputChange('residualExcl', Number(e.target.value))}
-                        style={{ flex: 1, padding: '6px', borderRadius: '6px' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ minWidth: 150 }}>Residual (incl GST)</span>
-                      <input
-                        placeholder="Residual (incl GST)"
-                        type="number"
-                        value={inputs.residualIncl || ''}
-                        onChange={e => handleInputChange('residualIncl', Number(e.target.value))}
-                        style={{ flex: 1, padding: '6px', borderRadius: '6px' }}
-                      />
-                    </div>
-                    {vehicleError && (
-                      <div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{vehicleError}</div>
-                    )}
-                  </div>
-                </div>
+              {fbtError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{fbtError}</div></li>}
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontWeight: 500, color: '#222', fontSize: '15px', minWidth: 150 }}>Vehicle Values</span>
+                <small style={{ color: '#666', fontSize: '12px' }}>At least one required</small>
               </li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Documentation Fee (AUD)</span>
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150 }}>Driveaway Cost</span>
+                <input
+                  placeholder="Driveaway Cost"
+                  type="number"
+                  value={inputs.driveawayCost || ''}
+                  onChange={e => handleInputChange('driveawayCost', Number(e.target.value))}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                />
+              </li>
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150 }}>Residual (excl GST)</span>
+                <input
+                  placeholder="Residual (excl GST)"
+                  type="number"
+                  value={inputs.residualExcl || ''}
+                  onChange={e => handleInputChange('residualExcl', Number(e.target.value))}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                />
+              </li>
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150 }}>Residual (incl GST)</span>
+                <input
+                  placeholder="Residual (incl GST)"
+                  type="number"
+                  value={inputs.residualIncl || ''}
+                  onChange={e => handleInputChange('residualIncl', Number(e.target.value))}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                />
+              </li>
+              {vehicleError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{vehicleError}</div></li>}
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Documentation Fee</span>
                 <input
                   type="number"
                   value={inputs.documentationFee || ''}
                   onChange={e => handleInputChange('documentationFee', Number(e.target.value))}
-                  style={{ flex: 1, padding: '6px', borderRadius: '8px' }}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                 />
               </li>
             </ul>
-            
+            </form>
 
-
-            {/* Payment Group (includes advanced options) */}
-            <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid #eee', borderRadius: '8px', background: '#fff' }}>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ minWidth: 150 }}>
-                    <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Payment Amount (AUD)</div>
-                    <div style={{ marginTop: '6px' }}>
-                      <select
-                        value={selectedFrequency}
-                        onChange={handleFrequencyChange}
-                        style={{
-                          width: '100%',
-                          height: '18px',
-                          padding: '0 8px',
-                          lineHeight: '18px',
-                          border: '1px solid #e6e9ee',
-                          borderRadius: '4px',
-                          background: 'transparent',
-                          color: '#222',
-                          fontWeight: 500,
-                          fontSize: '13px',
-                          appearance: 'auto',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
-                        onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
-                      >
-                        {paymentFrequencies.map((freq) => (
-                          <option key={freq.value} value={freq.value}>{freq.label}</option>
-                        ))}
-                      </select>
+              {/* Payment Group (includes advanced options) */}
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ minWidth: 150 }}>
+                      <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Payment Amount</div>
+                      <div style={{ marginTop: '6px' }}>
+                        <select
+                          value={selectedFrequency}
+                          onChange={handleFrequencyChange}
+                          style={{
+                            width: '100%',
+                            height: '18px',
+                            padding: '0 8px',
+                            lineHeight: '18px',
+                            border: '1px solid #e6e9ee',
+                            borderRadius: '4px',
+                            background: 'transparent',
+                            color: '#222',
+                            fontWeight: 500,
+                            fontSize: '13px',
+                            appearance: 'auto',
+                          }}
+                          onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
+                          onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
+                        >
+                          {paymentFrequencies.map((freq) => (
+                            <option key={freq.value} value={freq.value}>{freq.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                  <input
-                    type="number"
-                    value={inputs.paymentAmount || ''}
-                    onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
-                    style={{ flex: 1, padding: '8px', borderRadius: '8px' }}
-                  />
-                </li>
-              </ul>
-
-              <div style={{ marginTop: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', padding: 0, fontSize: '14px', textDecoration: 'underline' }}
-                >
-                  {showAdvanced ? 'Hide' : 'Show'} Advanced Options
-                </button>
-              </div>
-
-              {showAdvanced && (
-                <div style={{ marginTop: '8px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                  <div style={{ minWidth: 150 }}>
-                    <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Months Deferred</div>
-                  </div>
-                  <div style={{ maxWidth: '120px' }}>
                     <input
                       type="number"
-                      value={inputs.monthsDeferred || 0}
-                      min="0"
-                      max="12"
-                      step="1"
-                      onChange={(e) => handleInputChange('monthsDeferred', Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px', fontSize: '14px', borderRadius: '8px' }}
+                      value={inputs.paymentAmount || ''}
+                      onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
+                      style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                     />
-                  </div>
+                  </li>
+                </ul>
+
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', padding: 0, fontSize: '14px', textDecoration: 'underline' }}
+                  >
+                    {showAdvanced ? 'Hide' : 'Show'} Advanced Options
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {showAdvanced && (
+                  <div style={{ marginTop: '8px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ minWidth: 150 }}>
+                      <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Months Deferred</div>
+                    </div>
+                    <div style={{ maxWidth: '120px' }}>
+                      <input
+                        type="number"
+                        value={inputs.monthsDeferred || 0}
+                        min="0"
+                        max="12"
+                        step="1"
+                        onChange={(e) => handleInputChange('monthsDeferred', Number(e.target.value))}
+                        style={{ width: '12ch', padding: '8px', fontSize: '14px', borderRadius: '8px' }}
+                      />
+                    </div>
+                  </div>
+                    )}
+                  </div>
             {/* Running Costs Section */}
             <div style={{ marginTop: '32px', padding: '20px', border: '1.5px solid #1976d2', borderRadius: '12px', background: '#f7faff' }}>
               <h3 style={{ marginBottom: '16px', color: '#1976d2' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Management Fee</span>
-                  <input type="number" min="0" step="1" value={runningCosts.managementFee} onChange={e => handleRunningCostChange('managementFee', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.managementFee} onChange={e => handleRunningCostChange('managementFee', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Maintenance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.maintenance} onChange={e => handleRunningCostChange('maintenance', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.maintenance} onChange={e => handleRunningCostChange('maintenance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Tyres</span>
-                  <input type="number" min="0" step="1" value={runningCosts.tyres} onChange={e => handleRunningCostChange('tyres', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.tyres} onChange={e => handleRunningCostChange('tyres', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Rego</span>
-                  <input type="number" min="0" step="1" value={runningCosts.rego} onChange={e => handleRunningCostChange('rego', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.rego} onChange={e => handleRunningCostChange('rego', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Insurance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.insurance} onChange={e => handleRunningCostChange('insurance', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.insurance} onChange={e => handleRunningCostChange('insurance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Charging/Fuel</span>
-                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel} onChange={e => handleRunningCostChange('chargingFuel', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel} onChange={e => handleRunningCostChange('chargingFuel', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Other</span>
-                  <input type="number" min="0" step="1" value={runningCosts.other} onChange={e => handleRunningCostChange('other', Number(e.target.value))} style={{ flex: 1, padding: '8px', borderRadius: '8px' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.other} onChange={e => handleRunningCostChange('other', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
               </ul>
               <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -400,7 +394,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </form>
         </div>
 
         {/* Results Section */}
@@ -484,7 +477,7 @@ export default function HomePage() {
                 <tbody>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0' }}>Annual finance cost</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>--</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount)}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888' }}>[Offset: --]</td>
                   </tr>
                   <tr>
@@ -494,7 +487,7 @@ export default function HomePage() {
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0' }}>Total Annual cost</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts)}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts+annualPaymentAmount)}</td>
                     <td style={{ textAlign: 'right', padding: '8px 0', color: '#888', fontWeight: 700 }}>[Offset: --]</td>
                   </tr>
                   <tr>
