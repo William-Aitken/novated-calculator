@@ -83,59 +83,120 @@ export default function HomePage() {
   let baseRate: number | null = null;
   // Use whichever input is non-zero, prioritizing driveawayCost, then residualExcl, then residualIncl
   let leaseInputs = { ...inputs };
-  if (inputs.driveawayCost && inputs.driveawayCost > 0) {
+  if (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0) {
     leaseInputs.driveawayCost = inputs.driveawayCost;
     leaseInputs.residualExcl = undefined;
     leaseInputs.residualIncl = undefined;
-  } else if (inputs.residualExcl && inputs.residualExcl > 0) {
+  } else if (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) {
+    leaseInputs.driveawayCost = undefined;
+    leaseInputs.residualExcl = undefined;
+    leaseInputs.residualIncl = undefined;
+    leaseInputs.financedAmountManual = inputs.financedAmountManual;
+  } else if (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) {
     leaseInputs.driveawayCost = undefined;
     leaseInputs.residualIncl = undefined;
     leaseInputs.residualExcl = inputs.residualExcl;
-  } else if (inputs.residualIncl && inputs.residualIncl > 0) {
+  } else if (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) {
     leaseInputs.driveawayCost = undefined;
     leaseInputs.residualExcl = undefined;
     leaseInputs.residualIncl = inputs.residualIncl;
   }
+  // Helper: compute vehicle-derived values from any one provided input
+  const residualPercent = Math.round((0.6563 / 7) * (8 - (inputs.leaseTermYears || 0)) * 10000) / 10000;
+  const minValue = Math.min((inputs.fbtBaseValue || 0) / 11, 6334);
+
+  const computeFromDriveaway = (driveaway: number) => {
+    const financedAmount = driveaway - minValue + (inputs.documentationFee || 0);
+    const residualExclGst = residualPercent * (financedAmount - (inputs.documentationFee || 0));
+    return {
+      source: 'Driveaway',
+      driveawayCost: driveaway,
+      financedAmount,
+      residualExclGst,
+      residualInclGst: residualExclGst * 1.1,
+      residualPercent,
+    };
+  };
+
+  const computeFromResidualExcl = (resExcl: number) => {
+    const financedAmount = resExcl / residualPercent + (inputs.documentationFee || 0);
+    const driveaway = Math.round(financedAmount + minValue - (inputs.documentationFee || 0));
+    return {
+      source: 'Residual (excl)',
+      driveawayCost: driveaway,
+      financedAmount,
+      residualExclGst: resExcl,
+      residualInclGst: resExcl * 1.1,
+      residualPercent,
+    };
+  };
+
+  const computeFromResidualIncl = (resIncl: number) => {
+    const resExcl = resIncl / 1.1;
+    return { ...computeFromResidualExcl(resExcl), source: 'Residual (incl)' };
+  };
+
+  const computeFromFinanced = (financed: number) => {
+    const driveaway = Math.round(financed + minValue - (inputs.documentationFee || 0));
+    const residualExclGst = residualPercent * (financed - (inputs.documentationFee || 0));
+    return {
+      source: 'Financed',
+      driveawayCost: driveaway,
+      financedAmount: financed,
+      residualExclGst,
+      residualInclGst: residualExclGst * 1.1,
+      residualPercent,
+    };
+  };
+
+  const vehicleCalculations: Array<any> = [];
+  if (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0) vehicleCalculations.push(computeFromDriveaway(Number(inputs.driveawayCost)));
+  if (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) vehicleCalculations.push(computeFromResidualExcl(Number(inputs.residualExcl)));
+  if (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) vehicleCalculations.push(computeFromResidualIncl(Number(inputs.residualIncl)));
+  if (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) vehicleCalculations.push(computeFromFinanced(Number(inputs.financedAmountManual)));
   if (inputs.paymentAmount && inputs.paymentsPerYear) {
+    // Prefer manual inputs when available for interest rate solving
+    const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
+    const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
+    const manualResidualIncl = (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) ? Number(inputs.residualIncl) : undefined;
+
+    const financedForEffective = typeof manualFinanced === 'number' ? (manualFinanced - (inputs.documentationFee || 0)) : (results.financedAmount - (inputs.documentationFee || 0));
+    const financedForBase = typeof manualFinanced === 'number' ? manualFinanced : results.financedAmount;
+
+    const residualForEffective = typeof manualResidualExcl === 'number' ? manualResidualExcl : (typeof manualResidualIncl === 'number' ? manualResidualIncl / 1.1 : results.residualExclGst);
+
     effectiveRate = calculateEffectiveInterestRate({
       ...leaseInputs,
-      financedAmount: results.financedAmount - (inputs.documentationFee || 0),
-      residualExclGst: results.residualExclGst,
+      financedAmount: financedForEffective,
+      residualExclGst: residualForEffective,
     });
+
     baseRate = calculateEffectiveInterestRate({
       ...leaseInputs,
-      financedAmount: results.financedAmount,
-      residualExclGst: results.residualExclGst,
+      financedAmount: financedForBase,
+      residualExclGst: residualForEffective,
     });
   }
 
-  const handleInputChange = (field: keyof NovatedLeaseInputs, value: number | boolean) => {
+  const handleInputChange = (field: keyof NovatedLeaseInputs, value: number | boolean | undefined) => {
     let updatedInputs = { ...inputs, [field]: value };
-    // Back-calculate driveawayCost if residualExcl or residualIncl is entered
-    if ((field === 'residualExcl' || field === 'residualIncl') && typeof value === 'number' && value > 0) {
-      const leaseTermYears = updatedInputs.leaseTermYears;
-      const fbtBaseValue = updatedInputs.fbtBaseValue;
-      const documentationFee = updatedInputs.documentationFee || 0;
-      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
-      const minValue = Math.min(fbtBaseValue / 11, 6334);
-      if (field === 'residualExcl') {
-        const financedAmount = (value / residualPercent) + documentationFee;
-        updatedInputs.driveawayCost = Math.round(financedAmount + minValue - documentationFee);
-      } else if (field === 'residualIncl') {
-        const residualExcl = value / 1.1;
-        const financedAmount = (residualExcl / residualPercent) + documentationFee;
-        updatedInputs.driveawayCost = Math.round(financedAmount + minValue - documentationFee);
-      }
-    }
+    // Do not auto-update `driveawayCost` when residual values change.
+    // Prefer using values provided directly by the user (driveawayCost, residualExcl, residualIncl)
+    // Calculations will pick whichever input is present without mutating the other fields.
 
     setInputs(updatedInputs);
     // Persist inputs
     if (typeof window !== 'undefined') {
-      localStorage.setItem('novatedLeaseInputs', JSON.stringify(updatedInputs));
+      const saveCopy: Record<string, any> = { ...updatedInputs };
+      Object.keys(saveCopy).forEach(k => {
+        if (saveCopy[k] === undefined) saveCopy[k] = null;
+      });
+      localStorage.setItem('novatedLeaseInputs', JSON.stringify(saveCopy));
     }
 
     // Validate vehicle group: require at least one of driveawayCost, residualExcl, residualIncl
     const hasVehicleValue = (typeof updatedInputs.driveawayCost === 'number' && updatedInputs.driveawayCost > 0)
+      || (typeof updatedInputs.financedAmountManual === 'number' && updatedInputs.financedAmountManual > 0)
       || (typeof updatedInputs.residualExcl === 'number' && updatedInputs.residualExcl > 0)
       || (typeof updatedInputs.residualIncl === 'number' && updatedInputs.residualIncl > 0);
     if (!hasVehicleValue) {
@@ -196,6 +257,23 @@ export default function HomePage() {
   const totalAnnualRunningCosts = totalPerPeriod * (selectedFrequency || 12);
   const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
 
+  // Diff detection: compare provided inputs to calculated results
+  const DIFF_THRESHOLD = 0.05; // 5%
+  const calcDriveaway = results.driveawayCost || 0;
+  const inputDriveaway = typeof inputs.driveawayCost === 'number' ? inputs.driveawayCost : undefined;
+  const driveawayDiffPct = inputDriveaway ? Math.abs(inputDriveaway - calcDriveaway) / (calcDriveaway || 1) : 0;
+
+  const calcFinanced = results.financedAmount || 0;
+  const inputFinanced = typeof inputs.financedAmountManual === 'number' ? inputs.financedAmountManual : undefined;
+  const financedDiffPct = inputFinanced ? Math.abs(inputFinanced - calcFinanced) / (calcFinanced || 1) : 0;
+
+  const calcResidualExcl = results.residualExclGst || 0;
+  const inputResidualExcl = typeof inputs.residualExcl === 'number' ? inputs.residualExcl : undefined;
+  const residualDiffPct = inputResidualExcl ? Math.abs(inputResidualExcl - calcResidualExcl) / (calcResidualExcl || 1) : 0;
+  const calcResidualIncl = results.residualInclGst || 0;
+  const inputResidualIncl = typeof inputs.residualIncl === 'number' ? inputs.residualIncl : undefined;
+  const residualInclDiffPct = inputResidualIncl ? Math.abs(inputResidualIncl - calcResidualIncl) / (calcResidualIncl || 1) : 0;
+
 
 
   return (
@@ -244,7 +322,18 @@ export default function HomePage() {
                   placeholder="Driveaway Cost"
                   type="number"
                   value={inputs.driveawayCost || ''}
-                  onChange={e => handleInputChange('driveawayCost', Number(e.target.value))}
+                  onChange={e => handleInputChange('driveawayCost', e.target.value === '' ? undefined : Number(e.target.value))}
+                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                />
+              </li>
+
+              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
+                <span style={{ minWidth: 150 }}>Financed Amount</span>
+                <input
+                  placeholder="Financed Amount"
+                  type="number"
+                  value={inputs.financedAmountManual || ''}
+                  onChange={e => handleInputChange('financedAmountManual', e.target.value === '' ? undefined : Number(e.target.value))}
                   style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                 />
               </li>
@@ -255,7 +344,7 @@ export default function HomePage() {
                   placeholder="Residual (excl GST)"
                   type="number"
                   value={inputs.residualExcl || ''}
-                  onChange={e => handleInputChange('residualExcl', Number(e.target.value))}
+                  onChange={e => handleInputChange('residualExcl', e.target.value === '' ? undefined : Number(e.target.value))}
                   style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                 />
               </li>
@@ -266,7 +355,7 @@ export default function HomePage() {
                   placeholder="Residual (incl GST)"
                   type="number"
                   value={inputs.residualIncl || ''}
-                  onChange={e => handleInputChange('residualIncl', Number(e.target.value))}
+                  onChange={e => handleInputChange('residualIncl', e.target.value === '' ? undefined : Number(e.target.value))}
                   style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
                 />
               </li>
@@ -399,6 +488,7 @@ export default function HomePage() {
         {/* Results Section */}
         <div>
           <h2>Lease Calculation</h2>
+          
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Calculation Details and Residual Grouped Section */}
             {/* Financed Amount Section */}
@@ -408,11 +498,18 @@ export default function HomePage() {
                 <div style={{ padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee', marginTop: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
                     <span>Driveaway Cost</span>
-                    <span style={{ fontWeight: '500' }}>{formatCurrency(inputs.driveawayCost || 0)}</span>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: '500' }}>{formatCurrency(results.driveawayCost || 0)}</div>
+                        {typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0 ? (
+                          <div style={{ color: driveawayDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '12px' }}>
+                            from quote {formatCurrency(inputs.driveawayCost)}{driveawayDiffPct > DIFF_THRESHOLD ? ` — ${(driveawayDiffPct*100).toFixed(1)}% diff` : ''}
+                          </div>
+                        ) : null}
+                      </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span>Less: GST</span>
-                    <span style={{ fontWeight: '500' }}>-{formatCurrency(results.gst)}</span>
+                    <span style={{ fontWeight: '500' }}>-{formatCurrency(minValue)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span>Add: Documentation Fee</span>
@@ -420,9 +517,16 @@ export default function HomePage() {
                   </div>
                 </div>
               </details>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '4px', border: '2px solid #2e7d32' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Financed Amount</span>
-                <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
+              <div style={{ padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '4px', border: '2px solid #2e7d32', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Financed Amount</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
+                </div>
+                {(typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? (
+                  <div style={{ textAlign: 'right', color: financedDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '13px' }}>
+                    from quote {formatCurrency(inputs.financedAmountManual)}{financedDiffPct > DIFF_THRESHOLD ? ` — ${(financedDiffPct*100).toFixed(1)}% diff` : ''}
+                  </div>
+                ) : null}
               </div>
             </div>
             {/* Residual Calculation Grouped Section (matches Financed Amount style) */}
@@ -436,7 +540,12 @@ export default function HomePage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span>Residual Value (excl GST)</span>
-                    <span style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</div>
+                      {typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0 ? (
+                        <div style={{ color: '#666', fontSize: '12px' }}>from quote {formatCurrency(inputs.residualExcl)}</div>
+                      ) : null}
+                    </div>
                   </div>
                   <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
                     Calculated from financed amount less fees
@@ -447,9 +556,16 @@ export default function HomePage() {
                   </div>
                 </div>
               </details>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f6fafd', borderRadius: '4px', border: '2px solid #1976d2' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Residual Value (incl GST)</span>
-                <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
+              <div style={{ padding: '10px', backgroundColor: '#f6fafd', borderRadius: '4px', border: '2px solid #1976d2', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Residual Value (incl GST)</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
+                </div>
+                {typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0 ? (
+                  <div style={{ textAlign: 'right', color: residualInclDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '13px' }}>
+                    from quote {formatCurrency(inputs.residualIncl)}{residualInclDiffPct > DIFF_THRESHOLD ? ` — ${(residualInclDiffPct*100).toFixed(1)}% diff` : ''}
+                  </div>
+                ) : null}
               </div>
             </div>
             {/* Effective Interest Rate Result */}

@@ -13,6 +13,7 @@ export interface NovatedLeaseInputs {
 
 export interface NovatedLeaseResults {
       gst: number;
+      driveawayCost: number;
       financedAmount: number;
       residualPercent: number;
       residualExclGst: number;
@@ -20,25 +21,55 @@ export interface NovatedLeaseResults {
 }
 
 export function calculateNovatedLease(inputs: NovatedLeaseInputs): NovatedLeaseResults {
-  if (typeof inputs.driveawayCost !== 'number' || isNaN(inputs.driveawayCost)) {
-    throw new Error('driveawayCost must be provided');
-  }
-  const gst = inputs.fbtBaseValue / 11;
-  const documentationFee = inputs.documentationFee || 0;
-  const residualPercent = Math.round((0.6563 / 7) * (8 - inputs.leaseTermYears) * 10000) / 10000;
-  // Financed amount = driveawayCost - min(fbtBaseValue/11, 6334) + documentationFee
-  const minValue = Math.min(inputs.fbtBaseValue / 11, 6334);
-  const financedAmount = inputs.driveawayCost - minValue + documentationFee;
-  // Residual (excl gst) = residualPercent * (financedAmount - documentationFee)
-  const residualExclGst = residualPercent * (financedAmount - documentationFee);
-  const residualInclGst = residualExclGst * 1.1;
-  return {
-    gst,
-    financedAmount,
-    residualPercent,
-    residualExclGst,
-    residualInclGst,
-  };
+      // Make inputs resilient to string or number types
+      const toNum = (v: any): number | undefined => {
+            if (v === undefined || v === null) return undefined;
+            const n = Number(v);
+            return Number.isFinite(n) ? n : undefined;
+      };
+
+      const fbtBaseValueNum = toNum(inputs.fbtBaseValue) || 0;
+      const gst = fbtBaseValueNum / 11;
+      const documentationFee = toNum(inputs.documentationFee) || 0;
+      const leaseTermYears = toNum(inputs.leaseTermYears) || 0;
+      const residualPercent = Math.round((0.6563 / 7) * (8 - leaseTermYears) * 10000) / 10000;
+      const minValue = Math.min(gst, 6334);
+
+      const driveawayNum = toNum(inputs.driveawayCost);
+      const financedManualNum = toNum(inputs.financedAmountManual);
+      const residualExclNum = toNum(inputs.residualExcl);
+      const residualInclNum = toNum(inputs.residualIncl);
+
+      let financedAmount: number | undefined;
+
+      if (typeof driveawayNum === 'number') {
+            financedAmount = driveawayNum - minValue + documentationFee;
+      } else if (typeof financedManualNum === 'number') {
+            financedAmount = financedManualNum;
+      } else if (typeof residualExclNum === 'number') {
+            if (!residualPercent) throw new Error('Cannot derive financed amount: residual percent is zero');
+            financedAmount = residualExclNum / residualPercent + documentationFee;
+      } else if (typeof residualInclNum === 'number') {
+            if (!residualPercent) throw new Error('Cannot derive financed amount: residual percent is zero');
+            const resExcl = residualInclNum / 1.1;
+            financedAmount = resExcl / residualPercent + documentationFee;
+      }
+
+      if (typeof financedAmount !== 'number') {
+            throw new Error('At least one vehicle input (driveawayCost, financedAmountManual, residualExcl, residualIncl) must be provided');
+      }
+
+      const residualExclGst = residualPercent * (financedAmount - documentationFee);
+      const residualInclGst = residualExclGst * 1.1;
+      const driveawayCost = financedAmount + minValue - documentationFee;
+      return {
+            gst: gst,
+            driveawayCost,
+            financedAmount,
+            residualPercent,
+            residualExclGst,
+            residualInclGst,
+      };
 }
 
 // Calculate payment using PMT formula
