@@ -19,20 +19,20 @@ export default function HomePage() {
       const saved = localStorage.getItem('novatedLeaseRunningCosts');
       if (saved) {
         try {
-          return { managementFee: '', maintenance: '', tyres: '', rego: '', insurance: '', chargingFuel: '', other: '', ...JSON.parse(saved) };
+          return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0, ...JSON.parse(saved) };
         } catch {
-          return { managementFee: '', maintenance: '', tyres: '', rego: '', insurance: '', chargingFuel: '', other: '' };
+          return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0 };
         }
       }
     }
-    return { managementFee: '', maintenance: '', tyres: '', rego: '', insurance: '', chargingFuel: '', other: '' };
+    return { managementFee: 0, maintenance: 0, tyres: 0, rego: 0, insurance: 0, chargingFuel: 0, other: 0 };
   });
 
   // Sum of running cost inputs (treated as amounts per selected payment period)
   const totalRunningCostsPerPeriod = Object.values(runningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0);
 
   // Handler for running costs
-  const handleRunningCostChange = (field: keyof typeof runningCosts, value: string | number) => {
+  const handleRunningCostChange = (field: keyof typeof runningCosts, value: number) => {
     const updated = { ...runningCosts, [field]: value };
     setRunningCosts(updated);
     if (typeof window !== 'undefined') {
@@ -553,31 +553,31 @@ export default function HomePage() {
             <div style={{ marginTop: '12px', padding: '20px', border: '1.5px solid #1976d2', borderRadius: '12px', background: '#f7faff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <h3 style={{ margin: 0, color: '#1976d2' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
-              </div>step="1" value={runningCosts.managementFee} onChange={e => handleRunningCostChange('managementFee', e.target.value
+              </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Management Fee</span>
-                  <input type="number" step="1" value={runningCosts.maintenance} onChange={e => handleRunningCostChange('maintenance', e.target.valuelue))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.managementFee} onChange={e => handleRunningCostChange('managementFee', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Maintenance</span>
-                  <input type="number" step="1" value={runningCosts.tyres} onChange={e => handleRunningCostChange('tyres', e.target.valuearget.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.maintenance} onChange={e => handleRunningCostChange('maintenance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Tyres</span>
-                  <input type="number" step="1" value={runningCosts.rego} onChange={e => handleRunningCostChange('rego', e.target.valuee))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.tyres} onChange={e => handleRunningCostChange('tyres', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Rego</span>
-                  <input type="number" step="1" value={runningCosts.insurance} onChange={e => handleRunningCostChange('insurance', e.target.value{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.rego} onChange={e => handleRunningCostChange('rego', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Insurance</span>
-                  <input type="number" step="1" value={runningCosts.chargingFuel} onChange={e => handleRunningCostChange('chargingFuel', e.target.valuele={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.insurance} onChange={e => handleRunningCostChange('insurance', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Charging/Fuel</span>
-                  <input type="number" step="1" value={runningCosts.other} onChange={e => handleRunningCostChange('other', e.target.value.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel} onChange={e => handleRunningCostChange('chargingFuel', Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
                 </li>
                 <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                   <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Other</span>
