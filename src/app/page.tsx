@@ -1027,32 +1027,32 @@ export default function HomePage() {
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Annual finance cost</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(annualPaymentAmount)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(byoAnnualPayment, offsetAnnualFinanceCost, null, carloanAnnualPayment)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(byoAnnualPayment, offsetAnnualFinanceCost, null, carloanAnnualPayment)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Annual running costs</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(totalAnnualRunningCosts, offsetAnnualRunningCosts, null, carloanAnnualRunningCosts)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(totalAnnualRunningCosts, offsetAnnualRunningCosts, null, carloanAnnualRunningCosts)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Total Annual cost</td>
                     <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts+annualPaymentAmount)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(totalAnnualRunningCosts + byoAnnualPayment, offsetTotalAnnualCost, null, carloanTotalAnnualCost)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: '#222' }}>{getComparisonValue(totalAnnualRunningCosts + byoAnnualPayment, offsetTotalAnnualCost, null, carloanTotalAnnualCost)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Pre-tax contribution</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(preTaxContribution)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm), offsetPreTaxContribution, null, 0)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm), offsetPreTaxContribution, null, 0)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Post-tax Contribution</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(postTaxEcm)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(postTaxEcm, offsetPostTaxEcm, null, 0)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(postTaxEcm, offsetPostTaxEcm, null, 0)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Tax savings</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>
                       {comparisonTarget === 'offset' ? (
                         <>
                           {formatCurrency(offsetTaxSaved)}
@@ -1069,7 +1069,7 @@ export default function HomePage() {
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Out of pocket annually</td>
                     <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount) - taxSaved)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved, offsetOutOfPocketAnnually, null, carloanOutOfPocketAnnually)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: '#222' }}>{getComparisonValue(totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved, offsetOutOfPocketAnnually, null, carloanOutOfPocketAnnually)}</td>
                   </tr>
                   <tr style={{ borderTop: '2px solid #1976d2' }}>
                     <td colSpan={3} style={{ fontWeight: 700, padding: '12px 0 8px 0', color: '#1976d2', fontSize: '16px', textAlign: 'left' }}>
@@ -1079,32 +1079,32 @@ export default function HomePage() {
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total finance cost</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(annualPaymentAmount * (inputs.leaseTermYears || 0))}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(byoAnnualPayment * (inputs.leaseTermYears || 0), offsetAnnualFinanceCost * (inputs.leaseTermYears || 0), null, carloanAnnualPayment * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(byoAnnualPayment * (inputs.leaseTermYears || 0), offsetAnnualFinanceCost * (inputs.leaseTermYears || 0), null, carloanAnnualPayment * (inputs.leaseTermYears || 0))}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total running costs</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(totalAnnualRunningCosts * (inputs.leaseTermYears || 0), offsetAnnualRunningCosts * (inputs.leaseTermYears || 0), null, carloanAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(totalAnnualRunningCosts * (inputs.leaseTermYears || 0), offsetAnnualRunningCosts * (inputs.leaseTermYears || 0), null, carloanAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total tax savings</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(taxSaved * (inputs.leaseTermYears || 0))}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(byoTaxSaved * (inputs.leaseTermYears || 0), offsetTaxSaved * (inputs.leaseTermYears || 0), null, carloanTaxSaved * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(byoTaxSaved * (inputs.leaseTermYears || 0), offsetTaxSaved * (inputs.leaseTermYears || 0), null, carloanTaxSaved * (inputs.leaseTermYears || 0))}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Residual value</td>
                     <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(results.residualInclGst || 0, offsetResidual, null, carloanResidual)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(results.residualInclGst || 0, offsetResidual, null, carloanResidual)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Net cost over lease</td>
                     <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency(novatedNetCostOverLease)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700 }}>{getComparisonValue(byoNetCostOverLease, offsetNetCostOverLease, null, carloanNetCostOverLease)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222', fontWeight: 700 }}>{getComparisonValue(byoNetCostOverLease, offsetNetCostOverLease, null, carloanNetCostOverLease)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total excl running costs</td>
                     <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, fontSize: '16px' }}>{formatCurrency(novatedTotalExclRunning)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>{getComparisonValue(byoTotalExclRunning, offsetTotalExclRunning, null, carloanTotalExclRunning)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222', fontWeight: 700, fontSize: '16px' }}>{getComparisonValue(byoTotalExclRunning, offsetTotalExclRunning, null, carloanTotalExclRunning)}</td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Difference to driveaway price</td>

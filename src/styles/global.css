@@ -31,13 +31,13 @@ h2{font-size:18px;margin:0 0 12px;color:var(--text);font-weight:600}
 h3{font-size:15px;margin:0 0 10px;color:#444;font-weight:600}
 
 /* Layout */
-.app-main{padding:24px;max-width:var(--max-width);margin:0 auto}
+.app-main{padding:16px;max-width:var(--max-width);margin:0 auto}
 .grid{display:grid;gap:var(--gap)}
 .grid-2{grid-template-columns:1fr 1fr}
 @media (min-width:1024px){.grid-2{grid-template-columns:40% 60%}}
 
 /* Cards */
-.card{background:var(--card);border-radius:var(--radius);padding:16px;border:1px solid #eee}
+.card{background:var(--card);border-radius:var(--radius);padding:12px;border:1px solid #eee}
 .card--soft{background:#fbfcff;border:1px dashed #cfd8dc}
 .card--accent{background:#f7faff;border:1.5px solid var(--primary)}
 .card--highlight{background:#e8f5e9;border:2px solid #2e7d32}
@@ -46,8 +46,9 @@ h3{font-size:15px;margin:0 0 10px;color:#444;font-weight:600}
 
 /* Forms */
 .form-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--gap-sm)}
-.form-row{display:grid;grid-template-columns:180px 1fr;align-items:center;gap:12px}
+.form-row{display:grid;grid-template-columns:minmax(140px,220px) 1fr;align-items:center;gap:12px}
 .form-label{font-weight:600;color:var(--text);font-size:15px}
+.form-label{white-space:nowrap}
 .muted{color:var(--muted);font-size:13px}
 
 input[type='number'],input[type='text'],select{border:1px solid #e6e9ee;padding:8px;border-radius:8px;font-size:14px;background:transparent;color:var(--text)}
@@ -60,7 +61,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 /* Table and results */
 table{width:100%;border-collapse:collapse;font-size:15px}
-td{padding:8px 0}
+td{padding:6px 0}
 
 .summary-row{display:flex;justify-content:space-between;align-items:center}
 .right{text-align:right}
@@ -71,8 +72,9 @@ td{padding:8px 0}
 
 @media (max-width:720px){
   .grid-2{grid-template-columns:1fr}
-  .form-row{grid-template-columns:1fr}
-  .form-label{margin-bottom:6px}
+  /* widen label column on small screens so labels don't wrap */
+  .form-row{grid-template-columns:minmax(160px,260px) 1fr}
+  .form-label{margin-bottom:0}
 }
 
 .error-msg{color:var(--danger);font-size:12px;margin-left:180px}
