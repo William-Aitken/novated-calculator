@@ -373,6 +373,16 @@ export default function HomePage() {
     return 55438 + (x - 190000) * 0.47;
   };
 
+  // Consolidated vehicle values for consistency across comparisons
+  // Prefer manual inputs; fall back to calculated values
+  const comparisonDriveaway = (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0) ? inputs.driveawayCost : results.driveawayCost || 0;
+  const comparisonFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? inputs.financedAmountManual : results.financedAmount || 0;
+  const comparisonResidualExcl = 
+    (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? inputs.residualExcl :
+    (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) ? inputs.residualIncl / 1.1 :
+    results.residualExclGst || 0;
+  const comparisonResidualIncl = comparisonResidualExcl * 1.1;
+
   const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
   const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? (inputs.fbtBaseValue * 0.2 * 0.1 / (inputs.paymentsPerYear || 12)) : 0;
   const totalRunningCostsPerPeriod = Object.values(runningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0) + ecGstPerPeriod;
@@ -398,16 +408,9 @@ export default function HomePage() {
   let byoAnnualPayment: number = 0;
   if (comparisonTarget === 'self') {
     try {
-      const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
-      const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
-      const manualResidualIncl = (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) ? Number(inputs.residualIncl) : undefined;
-
-      const financedForBYO = typeof manualFinanced === 'number' ? manualFinanced : results.financedAmount;
-      const residualForBYO = typeof manualResidualExcl === 'number' ? manualResidualExcl : (typeof manualResidualIncl === 'number' ? manualResidualIncl / 1.1 : results.residualExclGst);
-
       byoPaymentPerPeriod = calculateBYOPayment({
-        financedAmount: financedForBYO,
-        residualExclGst: residualForBYO,
+        financedAmount: comparisonFinanced,
+        residualExclGst: comparisonResidualExcl,
         paymentsPerYear: inputs.paymentsPerYear || 12,
         leaseTermYears: inputs.leaseTermYears || 0,
         monthsDeferred: inputs.monthsDeferred,
@@ -455,7 +458,7 @@ export default function HomePage() {
     const offsetPeriodicRate = (comparisonInterestRate / 100) / paymentsPerYear;
     const n = (inputs.leaseTermYears || 0) * paymentsPerYear;
     const pv_payments = offsetPeriodicPayment * (Math.pow(1 + offsetPeriodicRate, n) - 1) / offsetPeriodicRate;
-    offsetResidual = (inputs.driveawayCost || 0) * Math.pow(1 + offsetPeriodicRate, n) - pv_payments;
+    offsetResidual = comparisonDriveaway * Math.pow(1 + offsetPeriodicRate, n) - pv_payments;
 
     if (comparisonTarget === 'offset') {
       offsetTaxSaved = interestAmountRunningCosts; // interest saved, not taxed
@@ -471,7 +474,7 @@ export default function HomePage() {
 
   // Net cost over lease variables
   const novatedNetCostOverLease = (totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0);
-  const byoNetCostOverLease = (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0);
+  const byoNetCostOverLease = (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + comparisonResidualIncl;
   const offsetNetCostOverLease = (offsetTotalAnnualCost - offsetTaxSaved) * (inputs.leaseTermYears || 0) + offsetResidual;
 
   // Total excl running costs variables
@@ -486,12 +489,12 @@ export default function HomePage() {
   let carloanTotalAnnualCost: number = 0;
   let carloanTaxSaved: number = 0;
   let carloanOutOfPocketAnnually: number = 0;
-  let carloanResidual: number = results.residualInclGst || 0;
+  let carloanResidual: number = comparisonResidualIncl;
   let carloanNetCostOverLease: number = 0;
   let carloanTotalExclRunning: number = 0;
   // Compute car loan payments using same BYO payment function (finance the financed amount from results)
   try {
-    const financedForLoan = (inputs.driveawayCost || 0);
+    const financedForLoan = comparisonDriveaway;
     // compute periodic payment (reuse BYO payment calc) then treat it as a fixed payment
     carloanPaymentPerPeriod = (totalAnnualCost - taxSaved) / (inputs.paymentsPerYear || 12);
     const paymentsPerYear = inputs.paymentsPerYear || 12;
@@ -516,9 +519,9 @@ export default function HomePage() {
     // fallback to zeros if calculation fails
   }
 
-  // Diff detection: compare provided inputs to calculated results
+  // Diff detection: compare provided inputs to consolidated comparison values
   const DIFF_THRESHOLD = 0.02; // 2%
-  const calcDriveaway = results.driveawayCost || 0;
+  const calcDriveaway = comparisonDriveaway;
   const inputDriveaway = typeof inputs.driveawayCost === 'number' ? inputs.driveawayCost : undefined;
   const driveawayDiffPct = inputDriveaway ? Math.abs(inputDriveaway - calcDriveaway) / (calcDriveaway || 1) : 0;
 
@@ -837,7 +840,7 @@ export default function HomePage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
                     <span>Driveaway Cost</span>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: '500' }}>{formatCurrency(results.driveawayCost || 0)}</div>
+                        <div style={{ fontWeight: '500' }}>{formatCurrency(comparisonDriveaway)}</div>
                         {typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0 ? (
                           <div style={{ color: driveawayDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '12px' }}>
                             from quote {formatCurrency(inputs.driveawayCost)}{driveawayDiffPct > DIFF_THRESHOLD ? ` — ${(driveawayDiffPct*100).toFixed(1)}% diff` : ''}
@@ -1093,8 +1096,8 @@ export default function HomePage() {
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Residual value</td>
-                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
-                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(results.residualInclGst || 0, offsetResidual, null, carloanResidual)}</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(comparisonResidualIncl)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: '#222' }}>{getComparisonValue(comparisonResidualIncl, offsetResidual, null, carloanResidual)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
                     <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Net cost over lease</td>
@@ -1112,34 +1115,34 @@ export default function HomePage() {
                       padding: '8px 0', 
                       fontWeight: 700, 
                       fontSize: '16px',
-                      color: (novatedTotalExclRunning - (inputs.driveawayCost || 0)) < 0 ? '#2e7d32' : '#c62828'
+                      color: (novatedTotalExclRunning - comparisonDriveaway) < 0 ? '#2e7d32' : '#c62828'
                     }}>
-                      {formatCurrency(novatedTotalExclRunning - (inputs.driveawayCost || 0))}
+                      {formatCurrency(novatedTotalExclRunning - comparisonDriveaway)}
                     </td>
                     <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>
                       {comparisonTarget === 'self' ? (() => {
-                        const diff = byoTotalExclRunning - (inputs.driveawayCost || 0);
+                        const diff = byoTotalExclRunning - comparisonDriveaway;
                         return (
                           <span style={{ color: diff < 0 ? '#2e7d32' : '#c62828' }}>
                             {formatCurrency(diff)}
                           </span>
                         );
                       })() : comparisonTarget === 'offset' ? (() => {
-                        const diff = offsetTotalExclRunning - (inputs.driveawayCost || 0);
+                        const diff = offsetTotalExclRunning - comparisonDriveaway;
                         return (
                           <span style={{ color: diff < 0 ? '#2e7d32' : '#c62828' }}>
                             {formatCurrency(diff)}
                           </span>
                         );
                       })() : comparisonTarget === 'hisa' ? (() => {
-                        const diff = offsetTotalExclRunning - (inputs.driveawayCost || 0);
+                        const diff = offsetTotalExclRunning - comparisonDriveaway;
                         return (
                           <span style={{ color: diff < 0 ? '#2e7d32' : '#c62828' }}>
                             {formatCurrency(diff)}
                           </span>
                         );
                       })() : comparisonTarget === 'carloan' ? (() => {
-                        const diff = carloanTotalExclRunning - (inputs.driveawayCost || 0);
+                        const diff = carloanTotalExclRunning - comparisonDriveaway;
                         return (
                           <span style={{ color: diff < 0 ? '#2e7d32' : '#c62828' }}>
                             {formatCurrency(diff)}
