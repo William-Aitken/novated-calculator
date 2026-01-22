@@ -99,7 +99,13 @@ export default function HomePage() {
       const saved = localStorage.getItem('novatedLeaseInputs');
       if (saved) {
         try {
-          return { ...defaultInputs, ...JSON.parse(saved) };
+          const parsed = JSON.parse(saved);
+          const merged: any = { ...defaultInputs, ...parsed };
+          const hasVehicleValue = [merged.driveawayCost, merged.financedAmountManual, merged.residualExcl, merged.residualIncl].some(v => typeof v === 'number' && !isNaN(v));
+          if (!hasVehicleValue) {
+            merged.driveawayCost = defaultInputs.driveawayCost;
+          }
+          return merged as NovatedLeaseInputs;
         } catch {
           return defaultInputs;
         }
@@ -108,34 +114,62 @@ export default function HomePage() {
     return defaultInputs;
   });
 
-  const [selectedFrequency, setSelectedFrequency] = useState(() => {
-    if (typeof window !== 'undefined') {
+  const [selectedFrequency, setSelectedFrequency] = useState<number>(12); // Default to Monthly
+
+  // Load saved selected frequency on client only to avoid SSR hydration mismatch
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
       const saved = localStorage.getItem('novatedLeaseSelectedFrequency');
-      if (saved) return Number(saved);
+      if (saved) {
+        const n = Number(saved);
+        if (Number.isFinite(n)) {
+          setSelectedFrequency(n);
+          setInputs(prev => ({ ...prev, paymentsPerYear: n }));
+        }
+      }
+    } catch (e) {
+      // ignore
     }
-    return 12;
-  }); // Default to Monthly
+  }, []);
 
   const [results, setResults] = useState(() => calculateNovatedLease(inputs));
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [fbtError, setFbtError] = useState<string | null>(null);
 
-  // Comparison controls (persisted)
-  const [comparisonTarget, setComparisonTarget] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('novatedLeaseComparisonTarget') || 'offset';
-    }
-    return 'offset';
-  });
+  // Comparison controls (persisted per-target)
+  const DEFAULT_COMPARISON_RATES: Record<string, number> = {
+    offset: 5.0,
+    carloan: 6.5,
+    hisa: 4.5,
+    self: 8.0,
+  };
 
-  const [comparisonInterestRate, setComparisonInterestRate] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const v = localStorage.getItem('novatedLeaseComparisonInterestRate');
-      return v ? Number(v) : 3.5;
+  let initialComparisonTarget = 'offset';
+  if (typeof window !== 'undefined') {
+    try {
+      initialComparisonTarget = localStorage.getItem('novatedLeaseComparisonTarget') || 'offset';
+    } catch (e) {
+      initialComparisonTarget = 'offset';
     }
-    return 3.5;
-  });
+  }
+
+  const [comparisonTarget, setComparisonTarget] = useState<string>(initialComparisonTarget);
+
+  const getSavedComparisonRate = (target: string) => {
+    try {
+      if (typeof window === 'undefined') return DEFAULT_COMPARISON_RATES[target] ?? 3.5;
+      const key = `novatedLeaseComparisonInterestRate_${target}`;
+      const v = localStorage.getItem(key);
+      const n = v ? Number(v) : NaN;
+      return Number.isFinite(n) ? n : (DEFAULT_COMPARISON_RATES[target] ?? 3.5);
+    } catch (e) {
+      return DEFAULT_COMPARISON_RATES[target] ?? 3.5;
+    }
+  };
+
+  const [comparisonInterestRate, setComparisonInterestRate] = useState<number>(() => getSavedComparisonRate(initialComparisonTarget));
 
   // Calculate effective interest rate if paymentAmount and paymentsPerYear are provided
   let effectiveRate: number | null = null;
@@ -259,7 +293,7 @@ export default function HomePage() {
       || (typeof updatedInputs.residualExcl === 'number' && updatedInputs.residualExcl > 0)
       || (typeof updatedInputs.residualIncl === 'number' && updatedInputs.residualIncl > 0);
     if (!hasVehicleValue) {
-      setVehicleError('Enter at least Driveaway cost or a Residual value');
+      setVehicleError('Enter at least one vehicle value');
     } else {
       setVehicleError(null);
     }
@@ -386,7 +420,7 @@ export default function HomePage() {
   }
 
   // Diff detection: compare provided inputs to calculated results
-  const DIFF_THRESHOLD = 0.05; // 5%
+  const DIFF_THRESHOLD = 0.02; // 2%
   const calcDriveaway = results.driveawayCost || 0;
   const inputDriveaway = typeof inputs.driveawayCost === 'number' ? inputs.driveawayCost : undefined;
   const driveawayDiffPct = inputDriveaway ? Math.abs(inputDriveaway - calcDriveaway) / (calcDriveaway || 1) : 0;
@@ -405,18 +439,34 @@ export default function HomePage() {
 
 
   return (
-    <main style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
+    <main className="app-main">
       <h1>Novated Lease Calculator</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '40% 60%', gap: '32px', marginTop: '32px' }}>
+      <div className="grid grid-2" style={{ marginTop: '32px' }}>
         {/* Input Section */}
         <div>
           <h2>Lease Details</h2>
-          <div style={{ padding: '0 20px', border: '1px solid #eee', borderRadius: '12px', background: '#fff' }}>
+          <div className="card">
             <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {/* Main Inputs as Tight List with Left Labels */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Lease Term (years)</span>
+            <ul className="form-list" style={{ marginBottom: '12px' }}>
+              <li className="form-row">
+                <span className="form-label">Vehicle Type</span>
+                <select
+                  value={isEv ? 'ev' : 'non'}
+                  onChange={e => {
+                    const v = e.target.value === 'ev';
+                    setIsEv(v);
+                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', String(v));
+                  }}
+                  className="input--compact align-end"
+                >
+                  <option value="non">Non-EV</option>
+                  <option value="ev">EV</option>
+                </select>
+              </li>
+
+              <li className="form-row">
+                <span className="form-label">Lease Term (years)</span>
                 <input
                   type="number"
                   min={1}
@@ -424,93 +474,94 @@ export default function HomePage() {
                   step={1}
                   value={inputs.leaseTermYears || ''}
                   onChange={e => handleInputChange('leaseTermYears', Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact"
+                  style={{ justifySelf: 'end' }}
                 />
               </li>
 
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>FBT Base Value*</span>
+              <li className="form-row">
+                <span className="form-label">FBT Base Value*</span>
                 <input
                   type="number"
                   value={inputs.fbtBaseValue || ''}
                   onChange={e => handleInputChange('fbtBaseValue', Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact"
+                  style={{ justifySelf: 'end' }}
                 />
               </li>
-              {fbtError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{fbtError}</div></li>}
+              {fbtError && <li><div className="error-msg">{fbtError}</div></li>}
 
               <li>
-                <div style={{ height: 1, background: '#e6e9ee', margin: '6px 0' }} />
+                <div className="divider" />
               </li>
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontWeight: 500, color: '#222', fontSize: '15px', minWidth: 150 }}>Vehicle Values</span>
-                <small style={{ color: '#666', fontSize: '12px' }}>At least one required</small>
+              <li className="form-row">
+                <small className="muted">At least one required</small>
               </li>
 
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150 }}>Driveaway Cost</span>
+              <li className="form-row">
+                <span>Driveaway Cost</span>
                 <input
                   placeholder="Driveaway Cost"
                   type="number"
                   value={inputs.driveawayCost || ''}
                   onChange={e => handleInputChange('driveawayCost', e.target.value === '' ? undefined : Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact align-end"
                 />
               </li>
 
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150 }}>Financed Amount</span>
+              <li className="form-row">
+                <span>Financed Amount</span>
                 <input
                   placeholder="Financed Amount"
                   type="number"
                   value={inputs.financedAmountManual || ''}
                   onChange={e => handleInputChange('financedAmountManual', e.target.value === '' ? undefined : Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact align-end"
                 />
               </li>
 
-              <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150 }}>Residual (excl GST)</span>
+              <li className="form-row">
+                <span>Residual (excl GST)</span>
                 <input
                   placeholder="Residual (excl GST)"
                   type="number"
                   value={inputs.residualExcl || ''}
                   onChange={e => handleInputChange('residualExcl', e.target.value === '' ? undefined : Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact align-end"
                 />
               </li>
 
-              <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150 }}>Residual (incl GST)</span>
+              <li className="form-row">
+                <span>Residual (incl GST)</span>
                 <input
                   placeholder="Residual (incl GST)"
                   type="number"
                   value={inputs.residualIncl || ''}
                   onChange={e => handleInputChange('residualIncl', e.target.value === '' ? undefined : Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact align-end"
                 />
               </li>
-              {vehicleError && <li><div style={{ color: '#b00020', fontSize: '12px', marginLeft: 150 }}>{vehicleError}</div></li>}
+              {vehicleError && <li><div className="error-msg">{vehicleError}</div></li>}
               <li>
-                <div style={{ height: 1, background: '#e6e9ee', margin: '6px 0' }} />
+                <div className="divider" />
               </li>
-              <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Documentation Fee</span>
+              <li className="form-row">
+                <span className="form-label">Documentation Fee</span>
                 <input
                   type="number"
                   value={inputs.documentationFee || ''}
                   onChange={e => handleInputChange('documentationFee', Number(e.target.value))}
-                  style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
+                  className="input--compact align-end"
                 />
               </li>
             </ul>
             </form>
 
               {/* Payment Group (includes advanced options) */}
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <ul className="form-list" style={{ gap: '8px' }}>
                   <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
                     <div style={{ minWidth: 150 }}>
-                      <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Payment Amount</div>
+                              <div className="form-label">Payment Amount</div>
                       <div style={{ marginTop: '6px' }}>
                         <select
                           value={selectedFrequency}
@@ -520,13 +571,13 @@ export default function HomePage() {
                             height: '18px',
                             padding: '0 8px',
                             lineHeight: '18px',
-                            border: '1px solid #e6e9ee',
-                            borderRadius: '4px',
-                            background: 'transparent',
-                            color: '#222',
-                            fontWeight: 500,
-                            fontSize: '13px',
-                            appearance: 'auto',
+                                  border: '1px solid #e6e9ee',
+                                  borderRadius: '4px',
+                                  background: 'transparent',
+                                  color: 'var(--text)',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                  appearance: 'auto',
                           }}
                           onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
                           onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
@@ -537,49 +588,46 @@ export default function HomePage() {
                         </select>
                       </div>
                     </div>
-                    <input
-                      type="number"
-                      value={inputs.paymentAmount || ''}
-                      onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
-                      style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }}
-                    />
+                          <input
+                            type="number"
+                            value={inputs.paymentAmount || ''}
+                            onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
+                            className="input--compact align-end"
+                          />
                   </li>
                 </ul>
 
                 <div style={{ marginTop: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced((v) => !v)}
-                    style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', padding: 0, fontSize: '14px', textDecoration: 'underline' }}
-                  >
+                  <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="btn--link">
                     {showAdvanced ? 'Hide' : 'Show'} Advanced Options
                   </button>
                 </div>
 
                 {showAdvanced && (
-                  <div style={{ marginTop: '8px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <div style={{ minWidth: 150 }}>
-                      <div style={{ fontWeight: 500, color: '#222', fontSize: '15px' }}>Months Deferred</div>
-                    </div>
-                    <div style={{ maxWidth: '120px' }}>
-                      <input
-                        type="number"
-                        value={inputs.monthsDeferred || 0}
-                        min="0"
-                        max="12"
-                        step="1"
-                        onChange={(e) => handleInputChange('monthsDeferred', Number(e.target.value))}
-                        style={{ width: '12ch', padding: '8px', fontSize: '14px', borderRadius: '8px' }}
-                      />
-                    </div>
-                  </div>
-                    )}
+                      <div style={{ marginTop: '8px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <div style={{ minWidth: 150 }}>
+                          <div className="form-label">Months Deferred</div>
+                        </div>
+                        <div style={{ maxWidth: '120px' }}>
+                          <input
+                            type="number"
+                            value={inputs.monthsDeferred || 0}
+                            min="0"
+                            max="12"
+                            step="1"
+                            onChange={(e) => handleInputChange('monthsDeferred', Number(e.target.value))}
+                            className="input--compact"
+                            style={{ fontSize: '14px' }}
+                          />
+                        </div>
+                      </div>
+                        )}
                   </div>
             {/* Income / Salary Section */}
-            <div style={{ marginTop: '24px', padding: '16px', border: '1px dashed #cfd8dc', borderRadius: '10px', background: '#fbfcff' }}>
-              <h4 style={{ margin: 0, color: '#1976d2', fontSize: '15px' }}>Income</h4>
+                  <div className="card card--soft" style={{ marginTop: '24px' }}>
+                    <h4 style={{ margin: 0, color: 'var(--primary)', fontSize: '15px' }}>Income</h4>
               <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '150px auto', gap: '10px', alignItems: 'center' }}>
-                <label style={{ fontWeight: 500 }}>Annual Salary</label>
+                <label className="form-label">Annual Salary</label>
                 <input
                   type="number"
                   min="0"
@@ -593,10 +641,10 @@ export default function HomePage() {
                       else localStorage.setItem('novatedLeaseAnnualSalary', String(v));
                     }
                   }}
-                  style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
+                  className="input--compact align-end"
                 />
 
-                <label style={{ fontWeight: 500 }}>Salary Package Cap</label>
+                <label className="form-label">Salary Package Cap</label>
                 <input
                   type="number"
                   min="0"
@@ -610,59 +658,45 @@ export default function HomePage() {
                       else localStorage.setItem('novatedLeasePackageCap', String(v));
                     }
                   }}
-                  style={{ width: '14ch', padding: '8px', borderRadius: '8px' }}
+                  className="input--compact align-end"
                 />
               </div>
-              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
-                <label style={{ fontSize: '14px', color: '#222', fontWeight: 500 }}>Vehicle Type</label>
-                <select
-                  value={isEv ? 'ev' : 'non'}
-                  onChange={e => {
-                    const v = e.target.value === 'ev';
-                    setIsEv(v);
-                    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', String(v));
-                  }}
-                  style={{ width: '10ch', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid #e6e9ee', fontSize: '14px', fontWeight: 600, color: '#222' }}
-                >
-                  <option value="non">Non-EV</option>
-                  <option value="ev">EV</option>
-                </select>
-              </div>
+              
             </div>
 
             {/* Running Costs Section */}
-            <div style={{ marginTop: '12px', padding: '20px', border: '1.5px solid #1976d2', borderRadius: '12px', background: '#f7faff' }}>
+            <div className="card card--accent" style={{ marginTop: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 style={{ margin: 0, color: '#1976d2' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
+                <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Management Fee</span>
-                  <input type="number" min="0" step="1" value={runningCosts.managementFee ?? ''} onChange={e => handleRunningCostChange('managementFee', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+              <ul className="form-list">
+                <li className="form-row">
+                  <span className="form-label">Management Fee</span>
+                  <input type="number" min="0" step="1" value={runningCosts.managementFee ?? ''} onChange={e => handleRunningCostChange('managementFee', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Maintenance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.maintenance ?? ''} onChange={e => handleRunningCostChange('maintenance', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Maintenance</span>
+                  <input type="number" min="0" step="1" value={runningCosts.maintenance ?? ''} onChange={e => handleRunningCostChange('maintenance', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Tyres</span>
-                  <input type="number" min="0" step="1" value={runningCosts.tyres ?? ''} onChange={e => handleRunningCostChange('tyres', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Tyres</span>
+                  <input type="number" min="0" step="1" value={runningCosts.tyres ?? ''} onChange={e => handleRunningCostChange('tyres', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Rego</span>
-                  <input type="number" min="0" step="1" value={runningCosts.rego ?? ''} onChange={e => handleRunningCostChange('rego', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Rego</span>
+                  <input type="number" min="0" step="1" value={runningCosts.rego ?? ''} onChange={e => handleRunningCostChange('rego', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Insurance</span>
-                  <input type="number" min="0" step="1" value={runningCosts.insurance ?? ''} onChange={e => handleRunningCostChange('insurance', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Insurance</span>
+                  <input type="number" min="0" step="1" value={runningCosts.insurance ?? ''} onChange={e => handleRunningCostChange('insurance', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Charging/Fuel</span>
-                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel ?? ''} onChange={e => handleRunningCostChange('chargingFuel', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Charging/Fuel</span>
+                  <input type="number" min="0" step="1" value={runningCosts.chargingFuel ?? ''} onChange={e => handleRunningCostChange('chargingFuel', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
-                <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Other</span>
-                  <input type="number" min="0" step="1" value={runningCosts.other ?? ''} onChange={e => handleRunningCostChange('other', e.target.value === '' ? undefined : Number(e.target.value))} style={{ width: '12ch', padding: '8px', borderRadius: '8px', justifySelf: 'end' }} />
+                <li className="form-row">
+                  <span className="form-label">Other</span>
+                  <input type="number" min="0" step="1" value={runningCosts.other ?? ''} onChange={e => handleRunningCostChange('other', e.target.value === '' ? undefined : Number(e.target.value))} className="input--compact" style={{ justifySelf: 'end' }} />
                 </li>
                 {!isEv && (
                   <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
@@ -675,21 +709,18 @@ export default function HomePage() {
                 <span style={{ minWidth: 150, fontWeight: 600, color: '#222', fontSize: '15px' }}>Total Running Costs </span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 600 }}>{formatCurrency(totalPerPeriod)} / {runningCostsFrequencyLabel}</div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency(totalAnnualRunningCosts)} pa</div>
                 </div>
               </div>
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ minWidth: 150, fontWeight: 700, color: '#1976d2', fontSize: '16px' }}>Total Lease</span>
+                <span style={{ minWidth: 150, fontWeight: 700, color: '#222', fontSize: '16px' }}>Total Lease</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, color: '#1976d2', fontSize: '16px' }}>{formatCurrency(totalPerPeriod + (Number(inputs.paymentAmount) || 0))} / {runningCostsFrequencyLabel}</div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency(totalAnnualCost)} pa</div>
+                  <div style={{ fontWeight: 700, color: '#222', fontSize: '16px' }}>{formatCurrency(totalPerPeriod + (Number(inputs.paymentAmount) || 0))} / {runningCostsFrequencyLabel}</div>
                 </div>
               </div>
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ minWidth: 150, fontWeight: 700, color: '#222', fontSize: '15px' }}>Out of pocket</span>
+                <span style={{ minWidth: 150, fontWeight: 700, color: '#1976d2', fontSize: '15px' }}>Out of pocket</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: '16px' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>{formatCurrency((outOfPocketPerInterval || 0)*(payPeriods || 1))} pa</div>
+                  <div style={{ fontWeight: 700, fontSize: '16px', color: '#1976d2' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
                 </div>
               </div>
             </div>
@@ -727,7 +758,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </details>
-              <div style={{ padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '4px', border: '2px solid #2e7d32', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="card card--highlight" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Financed Amount</span>
                   <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#2e7d32' }}>{formatCurrency(results.financedAmount)}</span>
@@ -766,7 +797,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </details>
-              <div style={{ padding: '10px', backgroundColor: '#f6fafd', borderRadius: '4px', border: '2px solid #1976d2', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="card card--info" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '15px' }}>Residual Value (incl GST)</span>
                   <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
@@ -780,16 +811,16 @@ export default function HomePage() {
             </div>
             {/* Effective Interest Rate Result */}
             {inputs.paymentAmount && inputs.paymentsPerYear && (
-              <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fffde7', borderRadius: '8px', border: '1px solid #ffe082' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#ff8f00' }}>Effective Interest Rate</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff8f00', marginTop: '8px' }}>
+              <div className="card card--warning" style={{ marginTop: '24px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Effective Interest Rate</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '8px' }}>
                   {effectiveRate !== null ? (effectiveRate * 100).toFixed(2) + '%' : 'N/A'}
                 </div>
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                  Calculated to match the entered payment amount and frequency
+                <div className="small" style={{ marginTop: '4px' }}>
+                  Calculated based on values entered
                 </div>
                 {baseRate !== null && (
-                  <div style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                  <div className="small" style={{ marginTop: '8px' }}>
                     <b>Base Rate:</b> {(baseRate * 100).toFixed(2)}% (fees included in finance amount)
                   </div>
                 )}
@@ -797,126 +828,139 @@ export default function HomePage() {
             )}
 
             {/* Offset Account Comparison Section (moved to right column) */}
-            <div style={{ marginTop: '40px', padding: '24px', border: '2px solid #bdbdbd', borderRadius: '12px', background: '#f8f9fa' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ fontWeight: 700, fontSize: '20px', color: '#1976d2' }}>Novated Lease Comparison</div>
-                <div style={{ textAlign: 'right', fontWeight: 700, color: '#1976d2' }}>Novated Lease</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                  <div style={{ fontWeight: 700, color: '#1976d2' }}>
-                    <select
-                      value={comparisonTarget}
-                      onChange={e => {
-                        setComparisonTarget(e.target.value);
-                        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonTarget', e.target.value);
-                      }}
-                      style={{
-                        width: '9ch',
-                        height: '24px',
-                        padding: '0 5px',
-                        lineHeight: '20px',
-                        border: '1px solid #e6e9ee',
-                        borderRadius: '6px',
-                        background: 'transparent',
-                        color: '#1976d2',
-                        fontWeight: 700,
-                        fontSize: '16px',
-                        appearance: 'auto',
-                      }}
-                    >
-                      <option value="offset">Offset</option>
-                      <option value="carloan">Loan</option>
-                      <option value="hisa">HISA</option>
-                      <option value="self">BYO</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={comparisonInterestRate}
-                      onChange={e => {
-                        const v = Number(e.target.value);
-                        setComparisonInterestRate(v);
-                        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonInterestRate', String(v));
-                      }}
-                      aria-label="Comparison interest rate"
-                      style={{ width: '6ch', height: '24px', padding: '4px', borderRadius: '4px', textAlign: 'center', fontSize: '16px', fontWeight: 700, color: '#1976d2' }}
-                    />
-                    <span style={{ color: '#1976d2', fontWeight: 700, fontSize: '16px' }}>%</span>
-                  </div>
-                </div>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+            <div className="card" style={{ marginTop: '40px', padding: '24px', border: '2px solid #bdbdbd', background: '#f8f9fa' }}>
+              
+              <table className="comparison-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', tableLayout: 'fixed', textAlign: 'right' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', fontWeight: 700, fontSize: '20px', color: '#1976d2', padding: '8px 0' }}>Novated Lease Comparison</th>
+                    <th style={{ textAlign: 'left', fontWeight: 700, color: '#1976d2', padding: '1px 0', width: '100px'  }}>Novated<br/>Lease</th>
+                    <th style={{ textAlign: 'center', padding: '1px 0', width: '100px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                        <select
+                          value={comparisonTarget}
+                          onChange={e => {
+                            const newTarget = e.target.value;
+                            setComparisonTarget(newTarget);
+                            if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseComparisonTarget', newTarget);
+                            const saved = getSavedComparisonRate(newTarget);
+                            setComparisonInterestRate(saved);
+                          }}
+                          style={{
+                            width: '90%',
+                            height: '24px',
+                            padding: '0 8px',
+                            lineHeight: '20px',
+                            border: '1px solid #e6e9ee',
+                            borderRadius: '6px',
+                            background: 'transparent',
+                            color: '#1976d2',
+                            fontWeight: 700,
+                            fontSize: '14px',
+                            appearance: 'auto',
+                          }}
+                        >
+                          <option value="offset">Offset</option>
+                          <option value="carloan">Loan</option>
+                          <option value="hisa">HISA</option>
+                          <option value="self">BYO</option>
+                        </select>
+                        <div style={{ display: 'flex', justifyContent: 'right', gap: '6px', alignItems: 'center', width: '100%' }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={comparisonInterestRate}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              setComparisonInterestRate(v);
+                              if (typeof window !== 'undefined') {
+                                const key = `novatedLeaseComparisonInterestRate_${comparisonTarget}`;
+                                localStorage.setItem(key, String(v));
+                              }
+                            }}
+                            aria-label="Comparison interest rate"
+                            style={{ width: '70%', height: '20px', padding: '4px', borderRadius: '4px', textAlign: 'right', fontSize: '14px', fontWeight: 700, color: '#1976d2' }}
+                          />
+                          <span style={{ color: '#1976d2', fontWeight: 700, fontSize: '14px' }}>%</span>
+                        </div>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
                 <tbody>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Annual finance cost</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Annual finance cost</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(annualPaymentAmount)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Annual running costs</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Annual running costs</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts : null)}</td>
+                  </tr>
+                  <tr style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>
+                    <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Total Annual cost</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts+annualPaymentAmount)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts + byoAnnualPayment : null)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Pre-tax contribution</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(preTaxContribution)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm) : null)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Post-tax ECM</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(postTaxEcm)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? postTaxEcm : null)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Tax savings</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
-                    <td style={{ fontWeight: 700, padding: '8px 0' }}>Total Annual cost</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency(totalAnnualRunningCosts+annualPaymentAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts + byoAnnualPayment : null)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Pre-tax contribution</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(preTaxContribution)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm) : null)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Post-tax ECM</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(postTaxEcm)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? postTaxEcm : null)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Tax savings</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved : null)}</td>
+                    <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Out of pocket annually</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount) - taxSaved)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '2px solid #1976d2' }}>
-                    <td colSpan={3} style={{ fontWeight: 700, padding: '12px 0 8px 0', color: '#1976d2', fontSize: '16px' }}>
+                    <td colSpan={3} style={{ fontWeight: 700, padding: '12px 0 8px 0', color: '#1976d2', fontSize: '16px', textAlign: 'left' }}>
                       Costs over {inputs.leaseTermYears || 0} year lease
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total finance cost</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(annualPaymentAmount * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment * (inputs.leaseTermYears || 0) : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total finance cost</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(annualPaymentAmount * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoAnnualPayment * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total running costs</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts * (inputs.leaseTermYears || 0) : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total running costs</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(totalAnnualRunningCosts * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? totalAnnualRunningCosts * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total tax savings</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(taxSaved * (inputs.leaseTermYears || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved * (inputs.leaseTermYears || 0) : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total tax savings</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(taxSaved * (inputs.leaseTermYears || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? byoTaxSaved * (inputs.leaseTermYears || 0) : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Residual value</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? results.residualInclGst || 0 : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Residual value</td>
+                    <td className="center-col" style={{ padding: '8px 0' }}>{formatCurrency(results.residualInclGst || 0)}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888' }}>{getComparisonValue(comparisonTarget === 'self' ? results.residualInclGst || 0 : null)}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid #ddd' }}>
-                    <td style={{ fontWeight: 700, padding: '8px 0' }}>Net cost over lease</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700 }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) : null)}</td>
+                    <td style={{ fontWeight: 700, padding: '8px 0', textAlign: 'left' }}>Net cost over lease</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700 }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700 }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Total excl running costs</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 700, fontSize: '16px' }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1))}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) : null)}</td>
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Total excl running costs</td>
+                    <td className="center-col" style={{ padding: '8px 0', fontWeight: 700, fontSize: '16px' }}>{formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1))}</td>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>{getComparisonValue(comparisonTarget === 'self' ? (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) : null)}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontWeight: 500, padding: '8px 0' }}>Difference to driveaway price</td>
-                    <td style={{ 
-                      textAlign: 'right', 
+                    <td style={{ fontWeight: 500, padding: '8px 0', textAlign: 'left' }}>Difference to driveaway price</td>
+                    <td className="center-col" style={{ 
                       padding: '8px 0', 
                       fontWeight: 700, 
                       fontSize: '16px',
@@ -924,7 +968,7 @@ export default function HomePage() {
                     }}>
                       {formatCurrency((totalAnnualRunningCosts + annualPaymentAmount - taxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1) - (inputs.driveawayCost || 0))}
                     </td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>
+                    <td className="center-col" style={{ padding: '8px 0', color: comparisonTarget === 'self' ? '#222' : '#888', fontWeight: 700, fontSize: '16px' }}>
                       {comparisonTarget === 'self' ? (() => {
                         const byoExclRunning = (totalAnnualRunningCosts + byoAnnualPayment - byoTaxSaved) * (inputs.leaseTermYears || 0) + (results.residualInclGst || 0) - ((totalPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * selectedFrequency * (inputs.leaseTermYears || 0) * 1.1);
                         const diff = byoExclRunning - (inputs.driveawayCost || 0);
