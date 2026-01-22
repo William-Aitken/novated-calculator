@@ -907,7 +907,7 @@ export default function HomePage() {
               </div>
             </div>
             {/* Effective Interest Rate Result */}
-            {inputs.paymentAmount && inputs.paymentsPerYear && (() => {
+            {(() => {
               const pct = effectiveRate !== null ? effectiveRate * 100 : null;
               let status = '';
               const containerBase: any = { marginTop: '24px', padding: '8px 20px', borderRadius: '8px', minHeight: '180px' };
