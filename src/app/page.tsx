@@ -508,7 +508,7 @@ export default function HomePage() {
   const preTaxContribution = Math.max(0, totalAnnualCost - postTaxEcm);
   const salaryAfterCap = Math.max(0, annualSalaryNum - packageCapNum);
   const taxBefore = calculateAUSIncomeTax(salaryAfterCap);
-  const taxableAfter = Math.max(0, salaryAfterCap - preTaxContribution);
+  const taxableAfter = Math.max(0, annualSalaryNum - preTaxContribution);
   const taxAfter = calculateAUSIncomeTax(taxableAfter);
   const taxSaved = Math.max(0, taxBefore - taxAfter);
   const payPeriods = Number(inputs.paymentsPerYear || selectedFrequency || 12);
@@ -579,7 +579,7 @@ export default function HomePage() {
       // accounting for periodic withdrawals (payments) and the final residual.
       const totalPayments = offsetPeriodicPayment * n;
       const driveawayInterestEarned = (offsetResidual + totalPayments - comparisonDriveaway) / (inputs.leaseTermYears || 0);
-      const taxOnDriveawayInterest = calculateAUSIncomeTax(annualSalaryNum) - calculateAUSIncomeTax(annualSalaryNum - driveawayInterestEarned + interestAmountRunningCosts);
+      const taxOnDriveawayInterest = calculateAUSIncomeTax(salaryAfterCap) - calculateAUSIncomeTax(salaryAfterCap - driveawayInterestEarned + interestAmountRunningCosts);
       offsetTaxSaved = taxOnDriveawayInterest ; // interestAmountRunningCosts -  after-tax interest earned on driveaway amount
     }
   }
@@ -651,11 +651,11 @@ export default function HomePage() {
 
 
   return (
-    <main className="app-main">
+    <main className="app-main" style={{ paddingRight: '32px' }}>
       <h1>Novated Lease Calculator</h1>
       <div className="grid grid-2" style={{ marginTop: '32px' }}>
         {/* Input Section */}
-        <div>
+        <div style={{ paddingBottom: '32px' }}>
           <h2>Lease Details</h2>
           <div className="card" style={{ background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
             <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -869,7 +869,7 @@ export default function HomePage() {
                         )}
                   </div>
             {/* Income / Salary Section */}
-                  <div className="card card--soft" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '12px' }}>
+                  <div className="card card--soft" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
                     <h4 style={{ margin: 0, color: 'var(--primary)', fontSize: '15px' }}>Income</h4>
               <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '150px auto', gap: '10px', alignItems: 'center' }}>
                 <label className="form-label">Annual Salary</label>
@@ -910,7 +910,7 @@ export default function HomePage() {
             </div>
 
             {/* Running Costs Section */}
-            <div className="card card--accent" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '12px' }}>
+            <div className="card card--accent" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
               <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel}) - {runningCostsIncludeGst ? 'Inc. GST' : 'Ex. GST'}</h3>
               <ul className="form-list">
                 <li className="form-row">
@@ -970,7 +970,7 @@ export default function HomePage() {
         </div>
 
         {/* Results Section */}
-        <div>
+        <div style={{ paddingBottom: '32px' }}>
           <h2>Lease Calculation</h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1059,7 +1059,7 @@ export default function HomePage() {
               const paymentsPerYearNum = Number(inputs.paymentsPerYear);
               const showPaymentError = Number.isFinite(paymentAmountNum) && paymentAmountNum > 0 && Number.isFinite(paymentsPerYearNum) && effectiveRate === null;
               let status = '';
-              const containerBase: any = { marginTop: '24px', padding: '8px 20px', borderRadius: '8px', minHeight: '180px' };
+              const containerBase: any = { marginTop: '12px', marginBottom: '12px', padding: '8px 20px', borderRadius: '8px', minHeight: '180px' };
               let containerStyle = { ...containerBase, border: '2px solid #ffb74d', background: '#fffdf2' };
               let pctColor = '#1976d2';
 
@@ -1118,7 +1118,7 @@ export default function HomePage() {
             })()}
 
             {/* Offset Account Comparison Section (moved to right column) */}
-            <div className="card" style={{ marginTop: '40px', padding: '24px', border: '2px solid #1976d2', background: '#fcfcfd' }}>
+            <div className="card" style={{ marginTop: '12px', padding: '16px', border: '2px solid #1976d2', background: '#fcfcfd' }}>
               
               <div style={{ marginBottom: '12px' }}>
                 <h3 style={{ margin: '0 0 12px 0', color: '#1976d2', fontSize: '20px', fontWeight: 700 }}>Novated Lease Comparison</h3>
