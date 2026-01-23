@@ -244,7 +244,7 @@ export default function HomePage() {
   if (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) vehicleCalculations.push(computeFromResidualExcl(Number(inputs.residualExcl)));
   if (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) vehicleCalculations.push(computeFromResidualIncl(Number(inputs.residualIncl)));
   if (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) vehicleCalculations.push(computeFromFinanced(Number(inputs.financedAmountManual)));
-  if (inputs.paymentAmount && inputs.paymentsPerYear) {
+  if (Number.isFinite(Number(inputs.paymentAmount)) && Number.isFinite(Number(inputs.paymentsPerYear)) && Number(inputs.paymentAmount) > 0) {
     // Prefer manual inputs when available for interest rate solving
     const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
     const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
@@ -266,6 +266,8 @@ export default function HomePage() {
       financedAmount: financedForBase,
       residualExclGst: residualForEffective,
     });
+
+    // Do not set state during render; derive payment error below instead
   }
 
   const handleInputChange = (field: keyof NovatedLeaseInputs, value: number | boolean | undefined) => {
@@ -466,9 +468,9 @@ export default function HomePage() {
       // Calculate interest that would have been earned in HISA on the driveaway amount,
       // accounting for periodic withdrawals (payments) and the final residual.
       const totalPayments = offsetPeriodicPayment * n;
-      const driveawayInterestEarned = (offsetResidual + totalPayments - (inputs.driveawayCost || 0)) / (inputs.leaseTermYears || 0);
-      const taxOnDriveawayInterest = calculateAUSIncomeTax(annualSalaryNum - driveawayInterestEarned) - calculateAUSIncomeTax(annualSalaryNum);
-      offsetTaxSaved = interestAmountRunningCosts - taxOnDriveawayInterest;//interestAmountRunningCosts - driveawayInterestEarned - taxOnDriveawayInterest; // after-tax interest earned on driveaway amount
+      const driveawayInterestEarned = (offsetResidual + totalPayments - comparisonDriveaway) / (inputs.leaseTermYears || 0);
+      const taxOnDriveawayInterest = calculateAUSIncomeTax(annualSalaryNum) - calculateAUSIncomeTax(annualSalaryNum - driveawayInterestEarned + interestAmountRunningCosts);
+      offsetTaxSaved = taxOnDriveawayInterest ; // interestAmountRunningCosts -  after-tax interest earned on driveaway amount
     }
   }
 
@@ -698,6 +700,12 @@ export default function HomePage() {
                 </ul>
 
                 <div style={{ marginTop: '8px' }}>
+                  {(() => {
+                    const paymentAmountNum = Number(inputs.paymentAmount);
+                    const paymentsPerYearNum = Number(inputs.paymentsPerYear);
+                    const show = Number.isFinite(paymentAmountNum) && paymentAmountNum > 0 && Number.isFinite(paymentsPerYearNum) && effectiveRate === null;
+                    return show ? <div className="error-msg" style={{ marginTop: 8 }}>Payment amount too low or payment frequency incorrect</div> : null;
+                  })()}
                   <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="btn--link">
                     {showAdvanced ? 'Hide' : 'Show'} Advanced Options
                   </button>
@@ -912,6 +920,9 @@ export default function HomePage() {
             {/* Effective Interest Rate Result */}
             {(() => {
               const pct = effectiveRate !== null ? effectiveRate * 100 : null;
+              const paymentAmountNum = Number(inputs.paymentAmount);
+              const paymentsPerYearNum = Number(inputs.paymentsPerYear);
+              const showPaymentError = Number.isFinite(paymentAmountNum) && paymentAmountNum > 0 && Number.isFinite(paymentsPerYearNum) && effectiveRate === null;
               let status = '';
               const containerBase: any = { marginTop: '24px', padding: '8px 20px', borderRadius: '8px', minHeight: '180px' };
               let containerStyle = { ...containerBase, border: '2px solid #ffb74d', background: '#fffdf2' };
@@ -951,6 +962,11 @@ export default function HomePage() {
                       </details>
                     </div>
                   </div>
+                  {showPaymentError ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div className="error-msg">Payment amount too low or payment frequency incorrect</div>
+                    </div>
+                  ) : null}
                   <div style={{ fontSize: '28px', fontWeight: '800', marginTop: '12px', color: pctColor }}>
                     {pct !== null ? pct.toFixed(2) + '%' : 'N/A'}
                   </div>
@@ -1059,12 +1075,12 @@ export default function HomePage() {
                       {comparisonTarget === 'offset' ? (
                         <>
                           {formatCurrency(offsetTaxSaved)}
-                          <span title="Interest saved by having running costs in offset. Assumed running cost balance averages 30% of annual running costs" style={{ cursor: 'help', fontSize: '12px', color: '#666', marginLeft: '4px' }}>ⓘ</span>
+                          <span title="Interest saved on running costs (30% avg balance)" onClick={() => alert('Interest saved on running costs (30% avg balance)')} style={{ cursor: 'help', fontSize: '12px', color: '#666', marginLeft: '4px', userSelect: 'none' }}>ⓘ</span>
                         </>
                       ) : comparisonTarget === 'hisa' ? (
                         <>
                           {formatCurrency(offsetTaxSaved)}
-                          <span title="After-tax interest that would have been earned in HISA on the driveaway amount, accounting for payments and residual. Assumed running cost balance averages 30% of annual running costs" style={{ cursor: 'help', fontSize: '12px', color: '#666', marginLeft: '4px' }}>ⓘ</span>
+                          <span title="Tax saved on previous HISA interest earnings (30% avg balance)" onClick={() => alert('Tax on HISA interest earnings (30% avg balance)')} style={{ cursor: 'help', fontSize: '12px', color: '#666', marginLeft: '4px', userSelect: 'none' }}>ⓘ</span>
                         </>
                       ) : getComparisonValue(byoTaxSaved, offsetTaxSaved, null, carloanTaxSaved)}
                     </td>

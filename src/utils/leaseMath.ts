@@ -95,17 +95,21 @@ export function calculateEffectiveInterestRate({
       monthsDeferred,
       ...rest
 }: NovatedLeaseInputs & { financedAmount: number, residualExclGst: number, monthsDeferred?: number }): number | null {
-      if (!paymentAmount || !paymentsPerYear || !leaseTermYears || !financedAmount || !residualExclGst) {
+      // Require numeric inputs (allow zero where meaningful) and guard against non-finite values
+      if (!Number.isFinite(Number(paymentAmount)) || !Number.isFinite(Number(paymentsPerYear)) || !Number.isFinite(Number(leaseTermYears)) || !Number.isFinite(Number(financedAmount)) || !Number.isFinite(Number(residualExclGst))) {
             return null;
       }
       // Ensure monthsDeferred is always a number
       const deferred = typeof monthsDeferred === 'number' ? monthsDeferred : 2;
-      const n = leaseTermYears * 12 - deferred;
-      const pv = -(financedAmount); 
+      const leaseTermYearsNum = Number(leaseTermYears);
+      const n = leaseTermYearsNum * 12 - deferred;
+      const pv = -(financedAmount);
       const fv = residualExclGst;
       const type = 1;
       // Convert payment to equivalent monthly payment that is two months deferred
-      const targetPayment = paymentAmount * (paymentsPerYear * leaseTermYears) / (12 * leaseTermYears - deferred);
+      const paymentAmountNum = Number(paymentAmount);
+      const paymentsPerYearNum = Number(paymentsPerYear);
+      const targetPayment = paymentAmountNum * (paymentsPerYearNum * leaseTermYearsNum) / (12 * leaseTermYearsNum - deferred);
 
       
 
