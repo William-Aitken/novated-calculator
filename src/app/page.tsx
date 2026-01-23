@@ -98,13 +98,46 @@ export default function HomePage() {
     }
     return undefined;
   });
+  
+  // NL Provider state
+  const nlProviders = [
+    'Maxxia',
+    'SG Fleet',
+    'FleetPartners',
+    'LeasePlan',
+    'SmartSalary',
+    'Toyota Fleet Management',
+    'Orix',
+    'LeaseLab',
+    'Simplygreen',
+    'WhipSmart',
+    'Easi / Alliance Leasing',
+    'FleetChoice',
+    'Autopia',
+  ];
+
+  const [nlProvider, setNlProvider] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseNlProvider');
+      return v ?? '';
+    }
+    return '';
+  });
+
+  const handleNlProviderChange = (value: string) => {
+    setNlProvider(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseNlProvider', value);
+    }
+  };
+
   const defaultInputs: NovatedLeaseInputs = {
-    driveawayCost: 50000,
+    driveawayCost: 0,
     residualExcl: 0,
     residualIncl: 0,
-    fbtBaseValue: 47527,
+    fbtBaseValue: 0,
     documentationFee: 0,
-    leaseTermYears: 2,
+    leaseTermYears: 5,
     paymentAmount: 0,
     paymentsPerYear: 12,
     monthsDeferred: 2,
@@ -149,10 +182,46 @@ export default function HomePage() {
     }
   }, []);
 
-  const [results, setResults] = useState(() => calculateNovatedLease(inputs));
+  const defaultResults = {
+    gst: 0,
+    driveawayCost: 0,
+    financedAmount: 0,
+    residualPercent: 0,
+    residualExclGst: 0,
+    residualInclGst: 0,
+  };
+
+  const [results, setResults] = useState(() => {
+    try {
+      return calculateNovatedLease(inputs);
+    } catch (e) {
+      return defaultResults;
+    }
+  });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [fbtError, setFbtError] = useState<string | null>(null);
+
+  // Recalculate when inputs change and validation passes
+  useEffect(() => {
+    // Validate vehicle group: require at least one of driveawayCost, residualExcl, residualIncl
+    const hasVehicleValue = (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0)
+      || (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0)
+      || (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0)
+      || (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0);
+
+    // Validate FBT Base Value is required
+    const hasFbt = typeof inputs.fbtBaseValue === 'number' && inputs.fbtBaseValue > 0;
+
+    // If validation passed, recalculate results
+    if (hasVehicleValue && hasFbt) {
+      try {
+        setResults(calculateNovatedLease(inputs));
+      } catch (e) {
+        // Silently fail if calculation throws
+      }
+    }
+  }, [inputs]);
 
   // Comparison controls (persisted per-target)
   const DEFAULT_COMPARISON_RATES: Record<string, number> = {
@@ -266,12 +335,19 @@ export default function HomePage() {
     return baseAmount;
   })();
 
+  // Effective payment amount that only changes based on runningCostsIncludeGst
+  const effectivePaymentAmount = (() => {
+    const baseAmount = Number(inputs.paymentAmount) || 0;
+    if (runningCostsIncludeGst) return baseAmount / 1.1;
+    return baseAmount;
+  })();
+
   const vehicleCalculations: Array<any> = [];
   if (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0) vehicleCalculations.push(computeFromDriveaway(Number(inputs.driveawayCost)));
   if (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) vehicleCalculations.push(computeFromResidualExcl(Number(inputs.residualExcl)));
   if (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) vehicleCalculations.push(computeFromResidualIncl(Number(inputs.residualIncl)));
   if (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) vehicleCalculations.push(computeFromFinanced(Number(inputs.financedAmountManual)));
-  if (Number.isFinite(Number(adjustedPaymentAmount)) && Number.isFinite(Number(inputs.paymentsPerYear)) && adjustedPaymentAmount > 0) {
+  if (Number.isFinite(Number(effectivePaymentAmount)) && Number.isFinite(Number(inputs.paymentsPerYear)) && effectivePaymentAmount > 0) {
     // Prefer manual inputs when available for interest rate solving
     const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
     const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
@@ -284,12 +360,14 @@ export default function HomePage() {
 
     effectiveRate = calculateEffectiveInterestRate({
       ...leaseInputs,
+      paymentAmount: effectivePaymentAmount,
       financedAmount: financedForEffective,
       residualExclGst: residualForEffective,
     });
 
     baseRate = calculateEffectiveInterestRate({
       ...leaseInputs,
+      paymentAmount: effectivePaymentAmount,
       financedAmount: financedForBase,
       residualExclGst: residualForEffective,
     });
@@ -331,18 +409,7 @@ export default function HomePage() {
     } else {
       setFbtError(null);
     }
-
-    // If any validation failed, do not proceed to calculations
-    if (!hasVehicleValue || !hasFbt) return;
-
-    // If manual override fields are set, use them for calculation
-    let calcInputs = { ...updatedInputs };
-    if (
-      field === 'financedAmountManual' && typeof value === 'number' && !isNaN(value)
-    ) {
-      calcInputs.financedAmountManual = value as number;
-    }
-    setResults(calculateNovatedLease(calcInputs));
+    // The useEffect will handle recalculation based on the updated inputs
   };
 
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -413,7 +480,7 @@ export default function HomePage() {
   const comparisonResidualIncl = comparisonResidualExcl * 1.1;
 
   const annualSalaryNum = Number(annualSalary) || 0;
-  const packageCapNum = Number(packageCap) || 0;
+  const packageCapNum = Number(packageCap)/1.1 || 0;
   const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
   
   // Adjust running costs based on GST settings
@@ -431,9 +498,9 @@ export default function HomePage() {
     };
   })();
   
-  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? ((inputs.fbtBaseValue || 0) * 0.2 - packageCapNum/1.1 )* 0.1 / (inputs.paymentsPerYear || 12) : 0;
+  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? ((inputs.fbtBaseValue || 0) * 0.2 - packageCapNum )* 0.1 / (inputs.paymentsPerYear || 12) : 0;
   const totalRunningCostsPerPeriod = Object.values(adjustedRunningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0) + ecGstPerPeriod;
-  const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - packageCapNum / 1.1) : 0;
+  const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - packageCapNum) : 0;
   const normalRunningCostsPerPeriod = (totalRunningCostsPerPeriod - (adjustedRunningCosts.managementFee || 0) - ecGstPerPeriod) * 1.1;
   const totalAnnualRunningCosts = totalRunningCostsPerPeriod * (selectedFrequency || 12);
   const annualPaymentAmount = adjustedPaymentAmount * (inputs.paymentsPerYear || 12);
@@ -595,6 +662,23 @@ export default function HomePage() {
             {/* Main Inputs as Tight List with Left Labels */}
             <ul className="form-list" style={{ marginBottom: '12px' }}>
               <li className="form-row">
+                <span className="form-label">NL Provider</span>
+                <input
+                  type="text"
+                  list="nlProviderList"
+                  value={nlProvider}
+                  onChange={e => handleNlProviderChange(e.target.value)}
+                  placeholder="Enter or select provider"
+                  className="input--compact"
+                  style={{ justifySelf: 'end' }}
+                />
+                <datalist id="nlProviderList">
+                  {nlProviders.map(provider => (
+                    <option key={provider} value={provider} />
+                  ))}
+                </datalist>
+              </li>
+              <li className="form-row">
                 <span className="form-label">Vehicle Type</span>
                 <select
                   value={isEv ? 'ev' : 'non'}
@@ -639,9 +723,8 @@ export default function HomePage() {
               <li>
                 <div className="divider" />
               </li>
-              <li className="form-row">
-                <small className="muted">At least one required</small>
-              </li>
+
+              {vehicleError && <li style={{ paddingLeft: 0 }}><div className="error-msg" style={{ textAlign: 'left' }}>{vehicleError}</div></li>}
 
               <li className="form-row">
                 <span>Driveaway Cost</span>
@@ -686,7 +769,6 @@ export default function HomePage() {
                   className="input--compact align-end"
                 />
               </li>
-              {vehicleError && <li><div className="error-msg">{vehicleError}</div></li>}
               <li>
                 <div className="divider" />
               </li>
@@ -704,41 +786,53 @@ export default function HomePage() {
 
               {/* Payment Group (includes advanced options) */}
                 <ul className="form-list" style={{ gap: '8px' }}>
-                  <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ minWidth: 150 }}>
-                              <div className="form-label">Payment Amount</div>
-                      <div style={{ marginTop: '6px' }}>
-                        <select
-                          value={selectedFrequency}
-                          onChange={handleFrequencyChange}
-                          style={{
-                            width: '100%',
-                            height: '18px',
-                            padding: '0 8px',
-                            lineHeight: '18px',
-                                  border: '1px solid #e6e9ee',
-                                  borderRadius: '4px',
-                                  background: 'transparent',
-                                  color: 'var(--text)',
-                                  fontWeight: 500,
-                                  fontSize: '13px',
-                                  appearance: 'auto',
-                          }}
-                          onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
-                          onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
-                        >
-                          {paymentFrequencies.map((freq) => (
-                            <option key={freq.value} value={freq.value}>{freq.label}</option>
-                          ))}
-                        </select>
-                      </div>
+                  <li className="form-row">
+                    <span className="form-label">Payment Amount</span>
+                    <input
+                      type="number"
+                      value={inputs.paymentAmount || ''}
+                      onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
+                      className="input--compact"
+                      style={{ justifySelf: 'end' }}
+                    />
+                  </li>
+                  <li style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', alignItems: 'center' }}>
+                    <div>
+                      <select
+                        value={selectedFrequency}
+                        onChange={handleFrequencyChange}
+                        style={{
+                          width: '100%',
+                          height: '36px',
+                          padding: '0 8px',
+                          border: '1px solid #e6e9ee',
+                          borderRadius: '4px',
+                          background: 'transparent',
+                          color: 'var(--text)',
+                          fontWeight: 500,
+                          fontSize: '14px',
+                          appearance: 'auto',
+                        }}
+                        onFocus={e => (e.currentTarget.style.borderColor = '#1565c0')}
+                        onBlur={e => (e.currentTarget.style.borderColor = '#1976d2')}
+                      >
+                        {paymentFrequencies.map((freq) => (
+                          <option key={freq.value} value={freq.value}>{freq.label}</option>
+                        ))}
+                      </select>
                     </div>
-                          <input
-                            type="number"
-                            value={inputs.paymentAmount || ''}
-                            onChange={(e) => handleInputChange('paymentAmount', Number(e.target.value))}
-                            className="input--compact align-end"
-                          />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'end' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Includes GST</label>
+                      <input
+                        type="checkbox"
+                        checked={runningCostsIncludeGst}
+                        onChange={(e) => {
+                          setRunningCostsIncludeGst(e.target.checked);
+                          if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', String(e.target.checked));
+                        }}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                    </div>
                   </li>
                 </ul>
 
@@ -817,47 +911,7 @@ export default function HomePage() {
 
             {/* Running Costs Section */}
             <div className="card card--accent" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    onClick={() => {
-                      setRunningCostsIncludeGst(false);
-                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', 'false');
-                    }}
-                    style={{
-                      padding: '4px 12px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      border: '1px solid #d0d0d0',
-                      borderRadius: '4px',
-                      background: !runningCostsIncludeGst ? '#1976d2' : '#fff',
-                      color: !runningCostsIncludeGst ? '#fff' : '#1976d2',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Ex GST
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRunningCostsIncludeGst(true);
-                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', 'true');
-                    }}
-                    style={{
-                      padding: '4px 12px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      border: '1px solid #d0d0d0',
-                      borderRadius: '4px',
-                      background: runningCostsIncludeGst ? '#1976d2' : '#fff',
-                      color: runningCostsIncludeGst ? '#fff' : '#1976d2',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Inc GST
-                  </button>
-                </div>
-              </div>
+              <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel}) - {runningCostsIncludeGst ? 'Inc. GST' : 'Ex. GST'}</h3>
               <ul className="form-list">
                 <li className="form-row">
                   <span className="form-label">Management Fee</span>

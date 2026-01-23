@@ -42,14 +42,14 @@ export function calculateNovatedLease(inputs: NovatedLeaseInputs): NovatedLeaseR
 
       let financedAmount: number | undefined;
 
-      if (typeof driveawayNum === 'number') {
+      if (typeof driveawayNum === 'number' && driveawayNum > 0) {
             financedAmount = driveawayNum - minValue + documentationFee;
-      } else if (typeof financedManualNum === 'number') {
+      } else if (typeof financedManualNum === 'number' && financedManualNum > 0) {
             financedAmount = financedManualNum;
-      } else if (typeof residualExclNum === 'number') {
+      } else if (typeof residualExclNum === 'number' && residualExclNum > 0) {
             if (!residualPercent) throw new Error('Cannot derive financed amount: residual percent is zero');
             financedAmount = residualExclNum / residualPercent + documentationFee;
-      } else if (typeof residualInclNum === 'number') {
+      } else if (typeof residualInclNum === 'number' && residualInclNum > 0) {
             if (!residualPercent) throw new Error('Cannot derive financed amount: residual percent is zero');
             const resExcl = residualInclNum / 1.1;
             financedAmount = resExcl / residualPercent + documentationFee;
