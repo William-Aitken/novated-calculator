@@ -1024,15 +1024,16 @@ export default function HomePage() {
                           <input
                             type="number"
                             step="0.01"
-                            value={comparisonInterestRate}
+                            value={comparisonInterestRate === 0 ? '' : comparisonInterestRate}
                             onChange={e => {
-                              const v = Number(e.target.value);
+                              const v = e.target.value === '' ? 0 : Number(e.target.value);
                               setComparisonInterestRate(v);
                               if (typeof window !== 'undefined') {
                                 const key = `novatedLeaseComparisonInterestRate_${comparisonTarget}`;
                                 localStorage.setItem(key, String(v));
                               }
                             }}
+                            placeholder="0.00"
                             aria-label="Comparison interest rate"
                             style={{ width: '70%', height: '20px', padding: '4px', borderRadius: '4px', textAlign: 'right', fontSize: '14px', fontWeight: 700, color: '#1976d2' }}
                           />
