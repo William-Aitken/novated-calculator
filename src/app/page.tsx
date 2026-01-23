@@ -608,7 +608,7 @@ export default function HomePage() {
   try {
     const financedForLoan = comparisonDriveaway;
     // compute periodic payment (reuse BYO payment calc) then treat it as a fixed payment
-    carloanPaymentPerPeriod = (totalAnnualCost - taxSaved) / (inputs.paymentsPerYear || 12);
+    carloanPaymentPerPeriod = (totalAnnualCost - taxSaved - carloanAnnualRunningCosts) / (inputs.paymentsPerYear || 12);
     const paymentsPerYear = inputs.paymentsPerYear || 12;
     carloanAnnualPayment = carloanPaymentPerPeriod * paymentsPerYear;
     carloanTotalAnnualCost = carloanAnnualRunningCosts + carloanAnnualPayment;
