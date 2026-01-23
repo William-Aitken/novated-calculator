@@ -540,7 +540,7 @@ export default function HomePage() {
   let byoTaxSaved: number = 0;
   if (comparisonTarget === 'self') {
     byoPreTaxContribution = Math.max(0, totalAnnualRunningCosts + byoAnnualPayment - postTaxEcm);
-    const byoTaxableAfter = Math.max(0, salaryAfterCap - byoPreTaxContribution);
+    const byoTaxableAfter = Math.max(0, annualSalaryNum - byoPreTaxContribution);
     const byoTaxAfter = calculateAUSIncomeTax(byoTaxableAfter);
     byoTaxSaved = Math.max(0, taxBefore - byoTaxAfter);
   }
