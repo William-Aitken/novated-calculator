@@ -33,8 +33,9 @@ h3{font-size:15px;margin:0 0 10px;color:#444;font-weight:600}
 /* Layout */
 .app-main{padding:16px;max-width:var(--max-width);margin:0 auto}
 .grid{display:grid;gap:var(--gap)}
-.grid-2{grid-template-columns:1fr 1fr}
-@media (min-width:1024px){.grid-2{grid-template-columns:30% 70%}}
+.grid-2{grid-template-columns:30% 70%}
+@media (max-width:1023px){.grid-2{grid-template-columns:35% 65%}}
+@media (max-width:768px){.grid-2{grid-template-columns:40% 60%}}
 
 /* Cards */
 .card{background:var(--card);border-radius:var(--radius);padding:12px;border:1px solid #eee}

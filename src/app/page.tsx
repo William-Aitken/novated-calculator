@@ -65,6 +65,25 @@ export default function HomePage() {
     }
     return false;
   });
+  
+  // Do running costs include GST? Persisted choice
+  const [runningCostsIncludeGst, setRunningCostsIncludeGst] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseRunningCostsIncludeGst');
+      return v ? v === 'true' : false;
+    }
+    return false;
+  });
+  
+  // GST savings passed on by employer?
+  const [gstSavingsPassedOn, setGstSavingsPassedOn] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeaseGstSavingsPassedOn');
+      return v ? v === 'true' : true; // Default to true
+    }
+    return true;
+  });
+  
   const [annualSalary, setAnnualSalary] = useState<number | undefined>(() => {
     if (typeof window !== 'undefined') {
       const v = localStorage.getItem('novatedLeaseAnnualSalary');
@@ -239,12 +258,20 @@ export default function HomePage() {
     };
   };
 
+  // Adjust payment amount based on GST settings (early calculation for use in interest rate)
+  const adjustedPaymentAmount = (() => {
+    const baseAmount = Number(inputs.paymentAmount) || 0;
+    if (gstSavingsPassedOn && runningCostsIncludeGst) return baseAmount / 1.1;
+    if (!gstSavingsPassedOn && !runningCostsIncludeGst) return baseAmount * 1.1;
+    return baseAmount;
+  })();
+
   const vehicleCalculations: Array<any> = [];
   if (typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0) vehicleCalculations.push(computeFromDriveaway(Number(inputs.driveawayCost)));
   if (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) vehicleCalculations.push(computeFromResidualExcl(Number(inputs.residualExcl)));
   if (typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0) vehicleCalculations.push(computeFromResidualIncl(Number(inputs.residualIncl)));
   if (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) vehicleCalculations.push(computeFromFinanced(Number(inputs.financedAmountManual)));
-  if (Number.isFinite(Number(inputs.paymentAmount)) && Number.isFinite(Number(inputs.paymentsPerYear)) && Number(inputs.paymentAmount) > 0) {
+  if (Number.isFinite(Number(adjustedPaymentAmount)) && Number.isFinite(Number(inputs.paymentsPerYear)) && adjustedPaymentAmount > 0) {
     // Prefer manual inputs when available for interest rate solving
     const manualFinanced = (typeof inputs.financedAmountManual === 'number' && inputs.financedAmountManual > 0) ? Number(inputs.financedAmountManual) : undefined;
     const manualResidualExcl = (typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0) ? Number(inputs.residualExcl) : undefined;
@@ -385,15 +412,31 @@ export default function HomePage() {
     results.residualExclGst || 0;
   const comparisonResidualIncl = comparisonResidualExcl * 1.1;
 
-  const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
-  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? (inputs.fbtBaseValue * 0.2 * 0.1 / (inputs.paymentsPerYear || 12)) : 0;
-  const totalRunningCostsPerPeriod = Object.values(runningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0) + ecGstPerPeriod;
   const annualSalaryNum = Number(annualSalary) || 0;
   const packageCapNum = Number(packageCap) || 0;
+  const runningCostsFrequencyLabel = paymentFrequencies.find(f => f.value === selectedFrequency)?.label || 'Monthly';
+  
+  // Adjust running costs based on GST settings
+  const adjustedRunningCosts: RunningCosts = (() => {
+    const multiplier = (gstSavingsPassedOn && runningCostsIncludeGst) ? 1 / 1.1 : (!gstSavingsPassedOn && !runningCostsIncludeGst) ? 1.1 : 1;
+    if (multiplier === 1) return runningCosts;
+    return {
+      managementFee: runningCosts.managementFee ? runningCosts.managementFee * multiplier : undefined,
+      maintenance: runningCosts.maintenance ? runningCosts.maintenance * multiplier : undefined,
+      tyres: runningCosts.tyres ? runningCosts.tyres * multiplier : undefined,
+      rego: runningCosts.rego ? runningCosts.rego * multiplier : undefined,
+      insurance: runningCosts.insurance ? runningCosts.insurance * multiplier : undefined,
+      chargingFuel: runningCosts.chargingFuel ? runningCosts.chargingFuel * multiplier : undefined,
+      other: runningCosts.other ? runningCosts.other * multiplier : undefined,
+    };
+  })();
+  
+  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? ((inputs.fbtBaseValue || 0) * 0.2 - packageCapNum/1.1 )* 0.1 / (inputs.paymentsPerYear || 12) : 0;
+  const totalRunningCostsPerPeriod = Object.values(adjustedRunningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0) + ecGstPerPeriod;
   const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - packageCapNum / 1.1) : 0;
-  const normalRunningCostsPerPeriod = (totalRunningCostsPerPeriod - (runningCosts.managementFee || 0) - ecGstPerPeriod) * 1.1;
+  const normalRunningCostsPerPeriod = (totalRunningCostsPerPeriod - (adjustedRunningCosts.managementFee || 0) - ecGstPerPeriod) * 1.1;
   const totalAnnualRunningCosts = totalRunningCostsPerPeriod * (selectedFrequency || 12);
-  const annualPaymentAmount = (Number(inputs.paymentAmount) || 0) * (inputs.paymentsPerYear || 12);
+  const annualPaymentAmount = adjustedPaymentAmount * (inputs.paymentsPerYear || 12);
   const totalAnnualCost = totalAnnualRunningCosts + annualPaymentAmount;
   const preTaxContribution = Math.max(0, totalAnnualCost - postTaxEcm);
   const salaryAfterCap = Math.max(0, annualSalaryNum - packageCapNum);
@@ -776,6 +819,44 @@ export default function HomePage() {
             <div className="card card--accent" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel})</h3>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => {
+                      setRunningCostsIncludeGst(false);
+                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', 'false');
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1px solid #d0d0d0',
+                      borderRadius: '4px',
+                      background: !runningCostsIncludeGst ? '#1976d2' : '#fff',
+                      color: !runningCostsIncludeGst ? '#fff' : '#1976d2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Ex GST
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRunningCostsIncludeGst(true);
+                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', 'true');
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1px solid #d0d0d0',
+                      borderRadius: '4px',
+                      background: runningCostsIncludeGst ? '#1976d2' : '#fff',
+                      color: runningCostsIncludeGst ? '#fff' : '#1976d2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Inc GST
+                  </button>
+                </div>
               </div>
               <ul className="form-list">
                 <li className="form-row">
@@ -809,7 +890,7 @@ export default function HomePage() {
                 {!isEv && (
                   <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
                     <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Employee contribution gst</span>
-                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency((inputs.fbtBaseValue || 0) * 0.2 * 0.1 / (inputs.paymentsPerYear || 12))}</div>
+                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency(ecGstPerPeriod)}</div>
                   </li>
                 )}
               </ul>
@@ -822,7 +903,7 @@ export default function HomePage() {
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ minWidth: 150, fontWeight: 700, color: '#222', fontSize: '16px' }}>Total Lease</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, color: '#222', fontSize: '16px' }}>{formatCurrency(totalRunningCostsPerPeriod + (Number(inputs.paymentAmount) || 0))} / {runningCostsFrequencyLabel}</div>
+                  <div style={{ fontWeight: 700, color: '#222', fontSize: '16px' }}>{formatCurrency(totalRunningCostsPerPeriod + adjustedPaymentAmount)} / {runningCostsFrequencyLabel}</div>
                 </div>
               </div>
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -985,10 +1066,54 @@ export default function HomePage() {
             {/* Offset Account Comparison Section (moved to right column) */}
             <div className="card" style={{ marginTop: '40px', padding: '24px', border: '2px solid #1976d2', background: '#fcfcfd' }}>
               
+              <div style={{ marginBottom: '12px' }}>
+                <h3 style={{ margin: '0 0 12px 0', color: '#1976d2', fontSize: '20px', fontWeight: 700 }}>Novated Lease Comparison</h3>
+                <div style={{ display: 'flex', gap: '6px', fontSize: '12px' }}>
+                  <button
+                    onClick={() => {
+                      setGstSavingsPassedOn(false);
+                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseGstSavingsPassedOn', 'false');
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1px solid #d0d0d0',
+                      borderRadius: '4px',
+                      background: !gstSavingsPassedOn ? '#1976d2' : '#fff',
+                      color: !gstSavingsPassedOn ? '#fff' : '#1976d2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    GST Included
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGstSavingsPassedOn(true);
+                      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseGstSavingsPassedOn', 'true');
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1px solid #d0d0d0',
+                      borderRadius: '4px',
+                      background: gstSavingsPassedOn ? '#1976d2' : '#fff',
+                      color: gstSavingsPassedOn ? '#fff' : '#1976d2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    GST Refunded
+                  </button>
+                </div>
+              </div>
+              
               <table className="comparison-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', tableLayout: 'fixed', textAlign: 'right' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', fontWeight: 700, fontSize: '20px', color: '#1976d2', padding: '8px 0' }}>Novated Lease Comparison</th>
+                    <th style={{ textAlign: 'left', fontWeight: 700, color: '#1976d2', padding: '8px 0' }}>
+                      <span>Details</span>
+                    </th>
                     <th style={{ textAlign: 'left', fontWeight: 700, color: '#1976d2', padding: '1px 0', width: '100px'  }}>Novated<br/>Lease</th>
                     <th style={{ textAlign: 'center', padding: '1px 0', width: '100px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
