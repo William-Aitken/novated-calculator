@@ -498,7 +498,7 @@ export default function HomePage() {
     };
   })();
   
-  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? ((inputs.fbtBaseValue || 0) * 0.2 - packageCapNum )* 0.1 / (inputs.paymentsPerYear || 12) : 0;
+  const ecGstPerPeriod = (!isEv && (inputs.fbtBaseValue || 0)) ? ((inputs.fbtBaseValue || 0) * 0.2 - packageCapNum )/ 11 / (inputs.paymentsPerYear || 12) : 0;
   const totalRunningCostsPerPeriod = Object.values(adjustedRunningCosts).reduce((sum: number, v) => sum + (Number(v) || 0), 0) + ecGstPerPeriod;
   const postTaxEcm = !isEv ? Math.max(0, (inputs.fbtBaseValue || 0) * 0.2 - packageCapNum) : 0;
   const normalRunningCostsPerPeriod = (totalRunningCostsPerPeriod - (adjustedRunningCosts.managementFee || 0) - ecGstPerPeriod) * 1.1;
