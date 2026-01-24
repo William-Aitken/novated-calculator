@@ -10,7 +10,15 @@ const paymentFrequencies = [
   { label: 'Yearly', value: 1 },
 ];
 
-
+interface SavedQuote {
+  id: string;
+  name: string;
+  inputs: NovatedLeaseInputs;
+  runningCosts: any;
+  salary: number | undefined;
+  packageCap: number | undefined;
+  createdAt: string;
+}
 
 export default function HomePage() {
   // Running costs state
@@ -26,6 +34,196 @@ export default function HomePage() {
   };
 
   const defaultRunningCosts: RunningCosts = { managementFee: undefined, maintenance: undefined, tyres: undefined, rego: undefined, insurance: undefined, chargingFuel: undefined, other: undefined };
+
+  // Theme state
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('novatedLeaseDarkMode');
+      return saved ? saved === 'true' : false;
+    }
+    return false;
+  });
+
+  // Menu and quotes state
+  const [showMenu, setShowMenu] = useState(false);
+  const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('novatedLeaseSavedQuotes');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
+  // Update theme in document
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (isDarkMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      localStorage.setItem('novatedLeaseDarkMode', String(isDarkMode));
+    }
+  }, [isDarkMode]);
+
+  // Helper function to get background color based on theme
+  const getBgColor = (lightColor: string, darkColor: string = '#2d2d2d') => {
+    return isDarkMode ? darkColor : lightColor;
+  };
+
+  // Helper function to get text color based on theme
+  const getTextColor = (lightColor: string, darkColor: string = '#e0e0e0') => {
+    return isDarkMode ? darkColor : lightColor;
+  };
+
+  // Helper function to get border color based on theme
+  const getBorderColor = (lightColor: string, darkColor: string = '#555') => {
+    return isDarkMode ? darkColor : lightColor;
+  };
+
+  // Save quote handler
+  const handleSaveQuote = () => {
+    const quoteName = prompt('Enter a name for this quote:');
+    if (!quoteName) return;
+
+    const newQuote: SavedQuote = {
+      id: Date.now().toString(),
+      name: quoteName,
+      inputs,
+      runningCosts,
+      salary: annualSalary,
+      packageCap,
+      createdAt: new Date().toLocaleDateString(),
+    };
+
+    const updated = [...savedQuotes, newQuote];
+    setSavedQuotes(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseSavedQuotes', JSON.stringify(updated));
+    }
+    alert(`Quote "${quoteName}" saved!`);
+  };
+
+  // Load quote handler
+  const handleLoadQuote = (quote: SavedQuote) => {
+    setInputs(quote.inputs);
+    setRunningCosts(quote.runningCosts);
+    setAnnualSalary(quote.salary);
+    setPackageCap(quote.packageCap);
+    setShowMenu(false);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseInputs', JSON.stringify(quote.inputs));
+      localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(quote.runningCosts));
+      if (quote.salary !== undefined) localStorage.setItem('novatedLeaseAnnualSalary', String(quote.salary));
+      if (quote.packageCap !== undefined) localStorage.setItem('novatedLeasePackageCap', String(quote.packageCap));
+    }
+  };
+
+  // Delete quote handler
+  const handleDeleteQuote = (id: string) => {
+    const updated = savedQuotes.filter(q => q.id !== id);
+    setSavedQuotes(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novatedLeaseSavedQuotes', JSON.stringify(updated));
+    }
+  };
+
+  // Clear inputs handler
+  const handleClearInputs = () => {
+    if (!confirm('Clear all inputs? This cannot be undone.')) return;
+    
+    const defaultInputs: NovatedLeaseInputs = {
+      driveawayCost: 0,
+      residualExcl: 0,
+      residualIncl: 0,
+      fbtBaseValue: 0,
+      documentationFee: 0,
+      leaseTermYears: 5,
+      paymentAmount: 0,
+      paymentsPerYear: 12,
+      monthsDeferred: 2,
+    };
+
+    setInputs(defaultInputs);
+    setRunningCosts(defaultRunningCosts);
+    setAnnualSalary(undefined);
+    setPackageCap(undefined);
+    setNlProvider('');
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('novatedLeaseInputs');
+      localStorage.removeItem('novatedLeaseRunningCosts');
+      localStorage.removeItem('novatedLeaseAnnualSalary');
+      localStorage.removeItem('novatedLeasePackageCap');
+      localStorage.removeItem('novatedLeaseNlProvider');
+    }
+  };
+
+  // Share calculation handler
+  // Encode calculation state to URL-safe string
+  const encodeCalculationState = () => {
+    const state = {
+      inputs,
+      runningCosts,
+      annualSalary,
+      packageCap,
+      isEv,
+    };
+    const json = JSON.stringify(state);
+    return btoa(json); // Base64 encode
+  };
+
+  // Decode calculation state from URL
+  const decodeCalculationState = (encoded: string) => {
+    try {
+      const json = atob(encoded); // Base64 decode
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+
+  // Load calculation from URL on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const params = new URLSearchParams(window.location.search);
+    const sharedState = params.get('calc');
+    
+    if (sharedState) {
+      const decoded = decodeCalculationState(sharedState);
+      if (decoded) {
+        setInputs(decoded.inputs || inputs);
+        setRunningCosts(decoded.runningCosts || runningCosts);
+        setAnnualSalary(decoded.annualSalary);
+        setPackageCap(decoded.packageCap);
+        setIsEv(decoded.isEv ?? false);
+      }
+    }
+  }, []); // Run only on mount
+
+  const handleShareCalculation = () => {
+    const encoded = encodeCalculationState();
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '';
+    const shareUrl = `${baseUrl}?calc=${encoded}`;
+
+    const shareData = {
+      title: 'Novated Lease Calculator Results',
+      text: `Check out my novated lease calculation! Driveaway: $${inputs.driveawayCost}, Lease Term: ${inputs.leaseTermYears} years, FBT Base: $${inputs.fbtBaseValue}`,
+      url: shareUrl,
+    };
+
+    if (navigator.share) {
+      navigator.share(shareData).catch(err => console.log('Share error:', err));
+    } else {
+      // Fallback: copy to clipboard
+      const text = `${shareData.text}\n${shareUrl}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Calculation link copied to clipboard!');
+      });
+    }
+  };
 
   const [runningCosts, setRunningCosts] = useState<RunningCosts>(() => {
     if (typeof window !== 'undefined') {
@@ -651,13 +849,263 @@ export default function HomePage() {
 
 
   return (
-    <main className="app-main" style={{ paddingRight: '32px' }}>
-      <h1>Novated Lease Calculator</h1>
+    <main className="app-main" style={{ paddingRight: '32px', position: 'relative' }}>
+      {/* Top navigation with buttons */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        paddingBottom: '16px',
+        borderBottom: '1px solid #e6e9ee',
+      }}>
+        <div>
+          <h1 style={{ margin: '0 0 0 0' }}>Novated Lease Calculator</h1>
+          <p style={{ margin: '0px 0 0 0', fontSize: '14px', color: '#666' }}>nl-calc.vercel.app</p>
+        </div>
+        
+        {/* Top right buttons */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={handleSaveQuote}
+            title="Save this quote"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #1976d2',
+              background: '#1976d2',
+              color: 'white',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            💾 Save Quote
+          </button>
+
+          <button
+            onClick={handleClearInputs}
+            title="Clear all inputs"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #ff9800',
+              background: '#ff9800',
+              color: 'white',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            🗑️ Clear
+          </button>
+
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #666',
+              background: isDarkMode ? '#333' : '#f5f5f5',
+              color: isDarkMode ? '#fff' : '#333',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            {isDarkMode ? '☀️ Light' : '🌙 Dark'}
+          </button>
+
+          <button
+            onClick={handleShareCalculation}
+            title="Share this calculation"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #2e7d32',
+              background: '#2e7d32',
+              color: 'white',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            📤 Share
+          </button>
+
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            title="Toggle menu"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #666',
+              background: showMenu ? '#1976d2' : '#f5f5f5',
+              color: showMenu ? 'white' : '#333',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            ☰ Menu
+          </button>
+        </div>
+      </div>
+
+      {/* Sidebar menu with saved quotes */}
+      {showMenu && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: '350px',
+          height: '100vh',
+          background: isDarkMode ? '#1e1e1e' : '#ffffff',
+          border: `1px solid #e6e9ee`,
+          boxShadow: '-2px 0 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
+          {/* Menu header */}
+          <div style={{
+            padding: '16px',
+            borderBottom: '1px solid #e6e9ee',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <h3 style={{ margin: 0, color: 'var(--primary)' }}>Saved Quotes</h3>
+            <button
+              onClick={() => setShowMenu(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '20px',
+                cursor: 'pointer',
+                color: 'var(--text)',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Quotes list */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '12px',
+          }}>
+            {savedQuotes.length === 0 ? (
+              <div style={{
+                padding: '16px',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                fontSize: '14px',
+              }}>
+                No saved quotes yet. Click "Save Quote" to get started!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {savedQuotes.map(quote => (
+                  <div
+                    key={quote.id}
+                    style={{
+                      padding: '12px',
+                      background: isDarkMode ? '#2d2d2d' : '#f9f9f9',
+                      border: '1px solid #e6e9ee',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = isDarkMode ? '#3d3d3d' : '#f0f0f0')}
+                    onMouseLeave={e => (e.currentTarget.style.background = isDarkMode ? '#2d2d2d' : '#f9f9f9')}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          onClick={() => handleLoadQuote(quote)}
+                          style={{
+                            fontWeight: 600,
+                            color: 'var(--primary)',
+                            marginBottom: '4px',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {quote.name}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--muted)',
+                          marginBottom: '6px',
+                        }}>
+                          {quote.createdAt}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--text)',
+                          lineHeight: '1.4',
+                        }}>
+                          <div>Driveaway: ${quote.inputs.driveawayCost?.toLocaleString()}</div>
+                          <div>Term: {quote.inputs.leaseTermYears} years</div>
+                          <div>FBT: ${quote.inputs.fbtBaseValue?.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteQuote(quote.id)}
+                        title="Delete this quote"
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #b00020',
+                          background: '#fff5f5',
+                          color: '#b00020',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap',
+                          marginTop: '4px',
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Overlay when menu is open */}
+      {showMenu && (
+        <div
+          onClick={() => setShowMenu(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.3)',
+            zIndex: 999,
+          }}
+        />
+      )}
+
       <div className="grid grid-2" style={{ marginTop: '32px' }}>
         {/* Input Section */}
         <div style={{ paddingBottom: '32px' }}>
           <h2>Lease Details</h2>
-          <div className="card" style={{ background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
+          <div className="card" style={{ background: getBgColor('#fbfbfb'), border: `1px solid ${getBorderColor('#d0d0d0')}`, padding: '16px' }}>
             <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {/* Main Inputs as Tight List with Left Labels */}
             <ul className="form-list" style={{ marginBottom: '12px' }}>
@@ -869,7 +1317,7 @@ export default function HomePage() {
                         )}
                   </div>
             {/* Income / Salary Section */}
-                  <div className="card card--soft" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
+                  <div className="card card--soft" style={{ marginTop: '12px', background: getBgColor('#fbfbfb'), border: `1px solid ${getBorderColor('#d0d0d0')}`, padding: '16px' }}>
                     <h4 style={{ margin: 0, color: 'var(--primary)', fontSize: '15px' }}>Income</h4>
               <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '150px auto', gap: '10px', alignItems: 'center' }}>
                 <label className="form-label">Annual Salary</label>
@@ -910,7 +1358,7 @@ export default function HomePage() {
             </div>
 
             {/* Running Costs Section */}
-            <div className="card card--accent" style={{ marginTop: '12px', background: '#fbfbfb', border: '1px solid #d0d0d0', padding: '16px' }}>
+            <div className="card card--accent" style={{ marginTop: '12px', background: getBgColor('#fbfbfb'), border: `1px solid ${getBorderColor('#d0d0d0')}`, padding: '16px' }}>
               <h3 style={{ margin: 0, color: 'var(--primary)' }}>Running Costs ({runningCostsFrequencyLabel}) - {runningCostsIncludeGst ? 'Inc. GST' : 'Ex. GST'}</h3>
               <ul className="form-list">
                 <li className="form-row">
@@ -943,24 +1391,24 @@ export default function HomePage() {
                 </li>
                 {!isEv && (
                   <li style={{ display: 'grid', gridTemplateColumns: '150px auto', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ minWidth: 150, fontWeight: 500, color: '#222', fontSize: '15px' }}>Employee contribution gst</span>
-                    <div style={{ justifySelf: 'end', color: '#222' }}>{formatCurrency(ecGstPerPeriod)}</div>
+                    <span style={{ minWidth: 150, fontWeight: 500, color: getTextColor('#222'), fontSize: '15px' }}>Employee contribution gst</span>
+                    <div style={{ justifySelf: 'end', color: getTextColor('#222') }}>{formatCurrency(ecGstPerPeriod)}</div>
                   </li>
                 )}
               </ul>
               <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ minWidth: 150, fontWeight: 600, color: '#222', fontSize: '15px' }}>Total Running Costs </span>
+                <span style={{ minWidth: 150, fontWeight: 600, color: getTextColor('#222'), fontSize: '15px' }}>Total Running Costs </span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 600 }}>{formatCurrency(totalRunningCostsPerPeriod)} / {runningCostsFrequencyLabel}</div>
                 </div>
               </div>
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ minWidth: 150, fontWeight: 700, color: '#222', fontSize: '16px' }}>Total Lease</span>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${getBorderColor('#ddd')}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ minWidth: 150, fontWeight: 700, color: getTextColor('#222'), fontSize: '16px' }}>Total Lease</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, color: '#222', fontSize: '16px' }}>{formatCurrency(totalRunningCostsPerPeriod + adjustedPaymentAmount)} / {runningCostsFrequencyLabel}</div>
+                  <div style={{ fontWeight: 700, color: getTextColor('#222'), fontSize: '16px' }}>{formatCurrency(totalRunningCostsPerPeriod + adjustedPaymentAmount)} / {runningCostsFrequencyLabel}</div>
                 </div>
               </div>
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${getBorderColor('#ddd')}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ minWidth: 150, fontWeight: 700, color: '#1976d2', fontSize: '15px' }}>Out of pocket</span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 700, fontSize: '16px', color: '#1976d2' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
@@ -979,13 +1427,13 @@ export default function HomePage() {
             <div style={{ marginBottom: '10px' }}>
               <details style={{ marginBottom: '4px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show Financed Amount Breakdown</summary>
-                <div style={{ padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee', marginTop: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
+                <div style={{ padding: '10px', backgroundColor: getBgColor('#f9f9f9'), borderRadius: '8px', border: `1px solid ${getBorderColor('#eee')}`, marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: `1px solid ${getBorderColor('#ddd')}` }}>
                     <span>Driveaway Cost</span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontWeight: '500' }}>{formatCurrency(comparisonDriveaway)}</div>
                         {typeof inputs.driveawayCost === 'number' && inputs.driveawayCost > 0 ? (
-                          <div style={{ color: driveawayDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '12px' }}>
+                          <div style={{ color: driveawayDiffPct > DIFF_THRESHOLD ? '#b00020' : getTextColor('#666'), fontSize: '12px' }}>
                             from quote {formatCurrency(inputs.driveawayCost)}{driveawayDiffPct > DIFF_THRESHOLD ? ` — ${(driveawayDiffPct*100).toFixed(1)}% diff` : ''}
                           </div>
                         ) : null}
@@ -1017,8 +1465,8 @@ export default function HomePage() {
             <div style={{ marginBottom: '10px' }}>
               <details style={{ marginBottom: '4px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show Residual Breakdown</summary>
-                <div style={{ padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', marginTop: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid #ddd' }}>
+                <div style={{ padding: '10px', backgroundColor: getBgColor('#f5f5f5'), borderRadius: '8px', border: `1px solid ${getBorderColor('#ddd')}`, marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: `1px solid ${getBorderColor('#ddd')}` }}>
                     <span>Residual %</span>
                     <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
                   </div>
@@ -1027,11 +1475,11 @@ export default function HomePage() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: '500' }}>{formatCurrency(results.residualExclGst)}</div>
                       {typeof inputs.residualExcl === 'number' && inputs.residualExcl > 0 ? (
-                        <div style={{ color: '#666', fontSize: '12px' }}>from quote {formatCurrency(inputs.residualExcl)}</div>
+                        <div style={{ color: getTextColor('#666'), fontSize: '12px' }}>from quote {formatCurrency(inputs.residualExcl)}</div>
                       ) : null}
                     </div>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #ddd' }}>
+                  <div style={{ fontSize: '11px', color: getTextColor('#999'), marginBottom: '8px', paddingBottom: '8px', borderBottom: `1px solid ${getBorderColor('#ddd')}` }}>
                     Calculated from financed amount less fees
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1046,7 +1494,7 @@ export default function HomePage() {
                   <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#1976d2' }}>{formatCurrency(results.residualInclGst)}</span>
                 </div>
                 {typeof inputs.residualIncl === 'number' && inputs.residualIncl > 0 ? (
-                  <div style={{ textAlign: 'right', color: residualInclDiffPct > DIFF_THRESHOLD ? '#b00020' : '#666', fontSize: '13px' }}>
+                  <div style={{ textAlign: 'right', color: residualInclDiffPct > DIFF_THRESHOLD ? '#b00020' : getTextColor('#666'), fontSize: '13px' }}>
                     from quote {formatCurrency(inputs.residualIncl)}{residualInclDiffPct > DIFF_THRESHOLD ? ` — ${(residualInclDiffPct*100).toFixed(1)}% diff` : ''}
                   </div>
                 ) : null}
@@ -1066,19 +1514,19 @@ export default function HomePage() {
               if (pct === null) {
                 status = 'N/A';
                 pctColor = '#666';
-                containerStyle = { ...containerBase, border: '2px solid #bdbdbd', background: '#fbfbfb' };
+                containerStyle = { ...containerBase, border: '2px solid #bdbdbd', background: getBgColor('#fbfbfb') };
               } else if (pct < 10) {
                 status = 'Competitive';
                 pctColor = '#2e7d32';
-                containerStyle = { ...containerBase, border: '2px solid #2e7d32', background: '#f7fbf7' };
+                containerStyle = { ...containerBase, border: '2px solid #2e7d32', background: getBgColor('#f7fbf7') };
               } else if (pct < 14) {
                 status = 'Elevated';
                 pctColor = '#ff8f00';
-                containerStyle = { ...containerBase, border: '2px solid #ffb300', background: '#fffdf2' };
+                containerStyle = { ...containerBase, border: '2px solid #ffb300', background: getBgColor('#fffdf2') };
               } else {
                 status = 'High';
                 pctColor = '#c62828';
-                containerStyle = { ...containerBase, border: '2px solid #c62828', background: '#fff5f5' };
+                containerStyle = { ...containerBase, border: '2px solid #c62828', background: getBgColor('#fff5f5') };
               }
 
               return (
@@ -1088,8 +1536,8 @@ export default function HomePage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ fontWeight: 700, color: pctColor }}>{status}</div>
                       <details style={{ fontSize: '12px' }}>
-                        <summary style={{ listStyle: 'none', cursor: 'pointer', color: '#666', padding: 0, margin: 0 }}>ⓘ</summary>
-                        <div style={{ padding: '8px', background: '#ffffff', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }}>
+                        <summary style={{ listStyle: 'none', cursor: 'pointer', color: getTextColor('#666'), padding: 0, margin: 0 }}>ⓘ</summary>
+                        <div style={{ padding: '8px', background: getBgColor('#ffffff'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px', color: getTextColor('#333') }}>
                           <div><b>Competitive:</b> &lt; 10%</div>
                           <div><b>Elevated:</b> 10%–13.99%</div>
                           <div><b>High:</b> ≥ 14%</div>
@@ -1105,11 +1553,11 @@ export default function HomePage() {
                   <div style={{ fontSize: '28px', fontWeight: '800', marginTop: '12px', color: pctColor }}>
                     {pct !== null ? pct.toFixed(2) + '%' : 'N/A'}
                   </div>
-                  <div className="small" style={{ marginTop: '4px', color: '#666' }}>
+                  <div className="small" style={{ marginTop: '4px', color: getTextColor('#666') }}>
                     Calculated based on values entered
                   </div>
                   {baseRate !== null && (
-                    <div className="small" style={{ marginTop: '10px', marginBottom: '12px' , color: '#666' }}>
+                    <div className="small" style={{ marginTop: '10px', marginBottom: '12px' , color: getTextColor('#666') }}>
                       <b>Base Rate:</b> {(baseRate * 100).toFixed(2)}% (fees included in finance amount)
                     </div>
                   )}
@@ -1118,7 +1566,7 @@ export default function HomePage() {
             })()}
 
             {/* Offset Account Comparison Section (moved to right column) */}
-            <div className="card" style={{ marginTop: '12px', padding: '16px', border: '2px solid #1976d2', background: '#fcfcfd' }}>
+            <div className="card" style={{ marginTop: '12px', padding: '16px', border: '2px solid #1976d2', background: getBgColor('#fcfcfd') }}>
               
               <div style={{ marginBottom: '12px' }}>
                 <h3 style={{ margin: '0 0 12px 0', color: '#1976d2', fontSize: '20px', fontWeight: 700 }}>Novated Lease Comparison</h3>
@@ -1132,9 +1580,9 @@ export default function HomePage() {
                       padding: '4px 12px',
                       fontSize: '12px',
                       fontWeight: 700,
-                      border: '1px solid #d0d0d0',
+                      border: `1px solid ${getBorderColor('#d0d0d0')}`,
                       borderRadius: '4px',
-                      background: !gstSavingsPassedOn ? '#1976d2' : '#fff',
+                      background: !gstSavingsPassedOn ? '#1976d2' : getBgColor('#fff'),
                       color: !gstSavingsPassedOn ? '#fff' : '#1976d2',
                       cursor: 'pointer',
                     }}
@@ -1150,9 +1598,9 @@ export default function HomePage() {
                       padding: '4px 12px',
                       fontSize: '12px',
                       fontWeight: 700,
-                      border: '1px solid #d0d0d0',
+                      border: `1px solid ${getBorderColor('#d0d0d0')}`,
                       borderRadius: '4px',
-                      background: gstSavingsPassedOn ? '#1976d2' : '#fff',
+                      background: gstSavingsPassedOn ? '#1976d2' : getBgColor('#fff'),
                       color: gstSavingsPassedOn ? '#fff' : '#1976d2',
                       cursor: 'pointer',
                     }}
