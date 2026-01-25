@@ -362,6 +362,8 @@ export default function HomePage() {
     'Easi / Alliance Leasing',
     'FleetChoice',
     'Autopia',
+    'NLA',
+    'Paywise',
   ];
 
   const [nlProvider, setNlProvider] = useState<string>(() => {
