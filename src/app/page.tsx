@@ -17,6 +17,8 @@ interface SavedQuote {
   runningCosts: any;
   salary: number | undefined;
   packageCap: number | undefined;
+  nlProvider: string;
+  selectedFrequency: number;
   createdAt: string;
 }
 
@@ -93,6 +95,8 @@ export default function HomePage() {
       runningCosts,
       salary: annualSalary,
       packageCap,
+      nlProvider,
+      selectedFrequency,
       createdAt: new Date().toLocaleDateString(),
     };
 
@@ -110,6 +114,8 @@ export default function HomePage() {
     setRunningCosts(quote.runningCosts);
     setAnnualSalary(quote.salary);
     setPackageCap(quote.packageCap);
+    setNlProvider(quote.nlProvider);
+    setSelectedFrequency(quote.selectedFrequency);
     setShowMenu(false);
 
     if (typeof window !== 'undefined') {
@@ -117,6 +123,8 @@ export default function HomePage() {
       localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(quote.runningCosts));
       if (quote.salary !== undefined) localStorage.setItem('novatedLeaseAnnualSalary', String(quote.salary));
       if (quote.packageCap !== undefined) localStorage.setItem('novatedLeasePackageCap', String(quote.packageCap));
+      localStorage.setItem('novatedLeaseNlProvider', quote.nlProvider);
+      localStorage.setItem('novatedLeaseSelectedFrequency', String(quote.selectedFrequency));
     }
   };
 
