@@ -1,6 +1,7 @@
 
   "use client";
-  import { useState, useEffect } from 'react';
+  import { useState, useEffect, useRef } from 'react';
+  import html2canvas from 'html2canvas';
   import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, type NovatedLeaseInputs } from '@/utils/leaseMath';
 
 const paymentFrequencies = [
@@ -230,6 +231,47 @@ export default function HomePage() {
       navigator.clipboard.writeText(text).then(() => {
         alert('Calculation link copied to clipboard!');
       });
+    }
+  };
+
+  const handleExportAsImage = async () => {
+    const contentElement = document.getElementById('calculator-content');
+    if (!contentElement) return;
+
+    try {
+      // Create a wrapper with padding for export
+      const wrapper = document.createElement('div');
+      wrapper.style.padding = '24px';
+      wrapper.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
+      wrapper.style.minHeight = '100vh';
+      wrapper.style.boxSizing = 'border-box';
+      const clonedContent = contentElement.cloneNode(true) as HTMLElement;
+      
+      // Expand all details elements in the cloned content
+      const detailsElements = clonedContent.querySelectorAll('details');
+      detailsElements.forEach((details) => {
+        details.setAttribute('open', '');
+      });
+      
+      wrapper.appendChild(clonedContent);
+      document.body.appendChild(wrapper);
+
+      const canvas = await html2canvas(wrapper, {
+        backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      document.body.removeChild(wrapper);
+
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `novated-lease-calculation-${new Date().toISOString().split('T')[0]}.png`;
+      link.click();
+    } catch (error) {
+      console.error('Error exporting as image:', error);
+      alert('Failed to export as image. Please try again.');
     }
   };
 
@@ -943,6 +985,23 @@ export default function HomePage() {
           </button>
 
           <button
+            onClick={handleExportAsImage}
+            title="Export as image"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #7b1fa2',
+              background: '#7b1fa2',
+              color: 'white',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            🖼️ Export
+          </button>
+
+          <button
             onClick={() => setShowMenu(!showMenu)}
             title="Toggle menu"
             style={{
@@ -1109,7 +1168,7 @@ export default function HomePage() {
         />
       )}
 
-      <div className="grid grid-2" style={{ marginTop: '32px' }}>
+      <div className="grid grid-2" style={{ marginTop: '32px' }} id="calculator-content">
         {/* Input Section */}
         <div style={{ paddingBottom: '32px' }}>
           <h2>Lease Details</h2>
@@ -1471,9 +1530,9 @@ export default function HomePage() {
             </div>
             {/* Residual Calculation Grouped Section (matches Financed Amount style) */}
             <div style={{ marginBottom: '10px' }}>
-              <details style={{ marginBottom: '4px' }}>
+              <details style={{ marginBottom: '16px', overflow: 'visible', position: 'relative', zIndex: 1 }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', padding: '6px 0' }}>Show Residual Breakdown</summary>
-                <div style={{ padding: '10px', backgroundColor: getBgColor('#f5f5f5'), borderRadius: '8px', border: `1px solid ${getBorderColor('#ddd')}`, marginTop: '6px' }}>
+                <div style={{ padding: '10px', backgroundColor: getBgColor('#f5f5f5'), borderRadius: '8px', border: `1px solid ${getBorderColor('#ddd')}`, marginTop: '6px', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', paddingBottom: '6px', borderBottom: `1px solid ${getBorderColor('#ddd')}` }}>
                     <span>Residual %</span>
                     <span style={{ fontWeight: '500' }}>{(results.residualPercent * 100).toFixed(2)}%</span>
