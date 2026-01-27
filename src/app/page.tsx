@@ -96,7 +96,7 @@ export default function HomePage() {
 
       if (financedAmount > 0 && leaseTermYears > 0) {
         let payment = calculateBYOPayment({
-          financedAmount,
+          financedAmount: financedAmount - (inputs.documentationFee || 0),
           residualExclGst: residual,
           paymentsPerYear,
           leaseTermYears,
@@ -808,7 +808,7 @@ export default function HomePage() {
   if (comparisonTarget === 'self') {
     try {
       byoPaymentPerPeriod = calculateBYOPayment({
-        financedAmount: comparisonFinanced,
+        financedAmount: comparisonFinanced - (inputs.documentationFee || 0),
         residualExclGst: comparisonResidualExcl,
         paymentsPerYear: inputs.paymentsPerYear || 12,
         leaseTermYears: inputs.leaseTermYears || 0,
@@ -1704,7 +1704,7 @@ export default function HomePage() {
                             </div>
                             <p style={{ margin: '12px 0 8px 0' }}>Ways to get to 8% or lower:</p>
                             <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                              <li>Negotiate with your novated lease provider for a lower interest rate</li>
+                              <li>Negotiate with your novated lease provider - Ask them for a breakdown of what is financed?</li>
                               <li>Get quotes from 2-3 competitive providers to use as leverage —
                                 <a href="https://www1.my.commbank.com.au/netbank/container/ESD/AssetFinance.Quote/ContainerLaunch?entry=CB&product=nl" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>Commonwealth</a>
                                 <a href="https://www.toyotafleetmanagement.com.au/novated-lease/calculator" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Toyota Fleet</a>
@@ -1740,7 +1740,7 @@ export default function HomePage() {
                             </div>
                             <p style={{ margin: '12px 0 8px 0' }}>Ways to get closer to 8%:</p>
                             <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                              <li>Negotiate with your current provider</li>
+                              <li>Negotiate with your current provider - Ask them for a breakdown of what is financed?</li>
                               <li>Get quotes from competitve providers —
                                 <a href="https://www1.my.commbank.com.au/netbank/container/ESD/AssetFinance.Quote/ContainerLaunch?entry=CB&product=nl" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>Commonwealth</a>
                                 <a href="https://www.toyotafleetmanagement.com.au/novated-lease/calculator" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Toyota Fleet</a>
