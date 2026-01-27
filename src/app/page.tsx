@@ -223,6 +223,8 @@ export default function HomePage() {
       annualSalary,
       packageCap,
       isEv,
+      nlProvider,
+      selectedFrequency,
     };
     const json = JSON.stringify(state);
     return btoa(json); // Base64 encode
@@ -253,9 +255,20 @@ export default function HomePage() {
         setAnnualSalary(decoded.annualSalary);
         setPackageCap(decoded.packageCap);
         setIsEv(decoded.isEv ?? false);
-        // Restore frequency from shared state
-        if (decoded.inputs?.paymentsPerYear) {
+        // Restore frequency and provider from shared state
+        if (typeof decoded.selectedFrequency === 'number' && Number.isFinite(decoded.selectedFrequency)) {
+          setSelectedFrequency(decoded.selectedFrequency);
+          setInputs(prev => ({ ...(decoded.inputs || prev), paymentsPerYear: decoded.selectedFrequency }));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('novatedLeaseSelectedFrequency', String(decoded.selectedFrequency));
+            localStorage.setItem('novatedLeaseInputs', JSON.stringify({ ...(decoded.inputs || inputs), paymentsPerYear: decoded.selectedFrequency }));
+          }
+        } else if (decoded.inputs?.paymentsPerYear) {
           setSelectedFrequency(decoded.inputs.paymentsPerYear);
+        }
+        if (typeof decoded.nlProvider === 'string') {
+          setNlProvider(decoded.nlProvider);
+          if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseNlProvider', decoded.nlProvider);
         }
       }
     }
@@ -1804,7 +1817,7 @@ export default function HomePage() {
                             <p style={{ margin: '12px 0 8px 0' }}>Ways to get closer to 8%:</p>
                             <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
                               <li>Negotiate with your current provider - Ask them for a breakdown of what is financed?</li>
-                              <li>Get quotes from competitve providers —
+                              <li>Get quotes from competitive providers 
                                 <a href="https://www1.my.commbank.com.au/netbank/container/ESD/AssetFinance.Quote/ContainerLaunch?entry=CB&product=nl" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>Commonwealth</a>
                                 <a href="https://www.toyotafleetmanagement.com.au/novated-lease/calculator" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Toyota Fleet</a>
                                 <a href="https://millarx.com.au/novated-leasing" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Millarx</a>
