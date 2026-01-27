@@ -2089,6 +2089,9 @@ export default function HomePage() {
                   )}
                 </ul>
               </div>
+              <div style={{ marginTop: 12, fontSize: 13, color: getTextColor('#666') }}>
+                For additional detail read the guide produced by u/Changyang1230 at <a href="https://novatedlease.guide" target="_blank" rel="noopener noreferrer" style={{ color: '#1976d2' }}>novatedlease.guide</a>
+              </div>
             </div>
           </div>
         </div>
