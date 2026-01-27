@@ -962,7 +962,7 @@ export default function HomePage() {
       }}>
         <div>
           <h1 style={{ margin: '0 0 0 0' }}>Novated Lease Calculator</h1>
-          <p style={{ margin: '0px 0 0 0', fontSize: '14px', color: '#666' }}>nl-calc.vercel.app</p>
+          <p style={{ margin: '0px 0 0 0', fontSize: '14px', color: '#666' }}>nl-calc.vercel.app    by: Will Aitken </p>
         </div>
         
         {/* Top right buttons */}
