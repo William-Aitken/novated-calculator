@@ -705,6 +705,8 @@ export default function HomePage() {
     const hasFbt = typeof updatedInputs.fbtBaseValue === 'number' && updatedInputs.fbtBaseValue > 0;
     if (!hasFbt) {
       setFbtError('FBT Base Value is required');
+    } else if (isEv && updatedInputs.fbtBaseValue > 91387) {
+      setFbtError('FBT Base Value exceeds $91,387 limit for EV. Not FBT exempt - please choose a non-EV vehicle.');
     } else {
       setFbtError(null);
     }
@@ -1293,6 +1295,14 @@ export default function HomePage() {
                     const v = e.target.value === 'ev';
                     setIsEv(v);
                     if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', String(v));
+                    // Validate FBT base value when switching to EV
+                    if (v && inputs.fbtBaseValue > 91387) {
+                      setFbtError('FBT Base Value exceeds $91,387 limit for EV. Not FBT exempt - please choose a non-EV vehicle.');
+                    } else if (!inputs.fbtBaseValue || inputs.fbtBaseValue === 0) {
+                      setFbtError('FBT Base Value is required');
+                    } else {
+                      setFbtError(null);
+                    }
                   }}
                   className="input--compact align-end"
                 >
