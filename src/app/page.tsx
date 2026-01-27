@@ -2021,10 +2021,33 @@ export default function HomePage() {
                   </tr>
                 </tbody>
               </table>
+
+              {/* Risks note for novated leases */}
+              <div style={{ marginTop: 12, padding: '12px', borderTop: `1px solid ${getBorderColor('#eee')}`, color: getTextColor('#666'), fontSize: 13 }}>
+                <strong>Although novated leases can work out well, there are some Risks that should be considered:</strong>
+                <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+                  <li><b>Early termination / employer change:</b> Leaving your employer can end salary packaging; you may face transfer hassles or immediate repayment obligations.</li>
+                  <li><b>Residual value risk:</b> The balloon/residual may be higher than market value at lease end, leaving you to cover the shortfall.</li>
+                  <li><b>Early termination & admin fees:</b> Exit, administration, break costs and documentation fees can be significant.</li>
+                  <li><b>Reduced flexibility / portability:</b> Changing vehicles or modifying the package is often limited and costly.</li>
+                  <li><b>Impact on borrowing / credit:</b> Lease obligations may affect future lending or credit assessments.</li>
+                  {isEv && (
+                    <li style={{ marginTop: 8 }}><b>FBT reporting (EV):</b> FBT-exempt leases still have a reportable fringe benefit that can affect HECS/HELP repayments, Family Tax Benefit and child support.</li>
+                  )}
+                </ul>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Disclaimer */}
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${getBorderColor('#e6e6e6')}`, color: getTextColor('#666'), fontSize: 12 }}>
+        <p style={{ margin: 0 }}>
+          Disclaimer: This calculator provides estimates only and is for informational purposes. It does not constitute financial advice. For definitive pricing or personalised advice, consult your novated lease provider or a qualified financial adviser.
+        </p>
+      </div>
+
     </main>
   );
 }
