@@ -1015,7 +1015,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            {isMobile ? (isDarkMode ? '☀️' : '⏾') : (isDarkMode ? '☀️ Light' : '⏾ Dark')}
+            {isMobile ? (isDarkMode ? '☀️' : '☀︎') : (isDarkMode ? '☀️ Light' : '☀︎ Dark')}
           </button>
 
           <button
