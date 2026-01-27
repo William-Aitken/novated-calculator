@@ -966,19 +966,25 @@ export default function HomePage() {
         </div>
         
         {/* Top right buttons */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', justifyContent: 'flex-end' }}>
           <button
             onClick={handleSaveQuote}
             title="Save this quote"
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #1976d2',
-              background: '#1976d2',
-              color: 'white',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? '💾' : '💾 Save'}
@@ -988,14 +994,20 @@ export default function HomePage() {
             onClick={handleClearInputs}
             title="Clear all inputs"
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #ff9800',
-              background: '#ff9800',
-              color: 'white',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? '🗑️' : '🗑️ Clear'}
@@ -1005,14 +1017,20 @@ export default function HomePage() {
             onClick={() => setIsDarkMode(!isDarkMode)}
             title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #666',
-              background: isDarkMode ? '#333' : '#f5f5f5',
-              color: isDarkMode ? '#fff' : '#333',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? (isDarkMode ? '☀️' : '☀︎') : (isDarkMode ? '☀️ Light' : '☀︎ Dark')}
@@ -1022,14 +1040,20 @@ export default function HomePage() {
             onClick={handleShareCalculation}
             title="Share this calculation"
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #2e7d32',
-              background: '#2e7d32',
-              color: 'white',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? '🔗' : '🔗 Share'}
@@ -1039,14 +1063,20 @@ export default function HomePage() {
             onClick={handleExportAsImage}
             title="Export as image"
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #7b1fa2',
-              background: '#7b1fa2',
-              color: 'white',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? '⬇️' : '⬇️ Export'}
@@ -1056,14 +1086,20 @@ export default function HomePage() {
             onClick={() => setShowMenu(!showMenu)}
             title="Toggle menu"
             style={{
-              padding: '8px 12px',
+              padding: isMobile ? '6px' : '8px 12px',
               borderRadius: '6px',
-              border: '1px solid #666',
-              background: showMenu ? '#1976d2' : '#f5f5f5',
-              color: showMenu ? 'white' : '#333',
+              border: '1px solid currentColor',
+              background: 'transparent',
+              color: getTextColor('#222'),
               fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: isMobile ? '12px' : '14px',
+              width: isMobile ? '40px' : 'auto',
+              height: isMobile ? '40px' : 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: isMobile ? '40px' : 'auto',
             }}
           >
             {isMobile ? '☰' : '☰ Menu'}
@@ -1180,16 +1216,21 @@ export default function HomePage() {
                         onClick={() => handleDeleteQuote(quote.id)}
                         title="Delete this quote"
                         style={{
-                          padding: '4px 8px',
+                          padding: isMobile ? '6px' : '4px 8px',
                           borderRadius: '4px',
-                          border: '1px solid #b00020',
-                          background: '#fff5f5',
+                          border: '1px solid currentColor',
+                          background: 'transparent',
                           color: '#b00020',
                           fontWeight: 600,
                           cursor: 'pointer',
                           fontSize: '12px',
                           whiteSpace: 'nowrap',
                           marginTop: '4px',
+                          width: isMobile ? '36px' : 'auto',
+                          height: isMobile ? '36px' : 'auto',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         {isMobile ? '✕' : '✕ Delete'}
