@@ -1753,7 +1753,7 @@ export default function HomePage() {
                                   return (
                                     <div>
                                       <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
-                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        {formatCurrency(frequencyPayment)} {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
                                         <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
                                         {(runningCostsIncludeGst) && (
                                           <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
@@ -1789,7 +1789,7 @@ export default function HomePage() {
                                   return (
                                     <div>
                                       <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
-                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        {formatCurrency(frequencyPayment)} {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
                                         <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
                                         {(runningCostsIncludeGst) && (
                                           <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
@@ -1825,7 +1825,7 @@ export default function HomePage() {
                                   return (
                                     <div>
                                       <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
-                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        {formatCurrency(frequencyPayment)} {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
                                         <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
                                         {(runningCostsIncludeGst) && (
                                           <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
