@@ -69,6 +69,18 @@ export default function HomePage() {
     }
   }, [isDarkMode]);
 
+  // Mobile detection for responsive tweaks
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === 'undefined') return;
+      setIsMobile(window.innerWidth <= 600);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Helper function to get background color based on theme
   const getBgColor = (lightColor: string, darkColor: string = '#2d2d2d') => {
     return isDarkMode ? darkColor : lightColor;
@@ -969,7 +981,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            💾 Save Quote
+            {isMobile ? '💾' : '💾 Save'}
           </button>
 
           <button
@@ -986,7 +998,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            🗑️ Clear
+            {isMobile ? '🗑️' : '🗑️ Clear'}
           </button>
 
           <button
@@ -1003,7 +1015,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            {isDarkMode ? '☀️ Light' : '🌙 Dark'}
+            {isMobile ? (isDarkMode ? '☀️' : '⏾') : (isDarkMode ? '☀️ Light' : '⏾ Dark')}
           </button>
 
           <button
@@ -1020,7 +1032,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            📤 Share
+            {isMobile ? '🔗' : '🔗 Share'}
           </button>
 
           <button
@@ -1037,7 +1049,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            🖼️ Export
+            {isMobile ? '⬇️' : '⬇️ Export'}
           </button>
 
           <button
@@ -1054,7 +1066,7 @@ export default function HomePage() {
               fontSize: '14px',
             }}
           >
-            ☰ Menu
+            {isMobile ? '☰' : '☰ Menu'}
           </button>
         </div>
       </div>
@@ -1180,7 +1192,7 @@ export default function HomePage() {
                           marginTop: '4px',
                         }}
                       >
-                        Delete
+                        {isMobile ? '✕' : '✕ Delete'}
                       </button>
                     </div>
                   </div>
