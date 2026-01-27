@@ -1810,7 +1810,6 @@ export default function HomePage() {
                                 <a href="https://millarx.com.au/novated-leasing" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Millarx</a>
                               </li>
                               <li>Review all fees - ask which ones can be removed</li>
-                              <li>Consider a larger upfront payment</li>
                             </ul>
                           </>
                         )}
