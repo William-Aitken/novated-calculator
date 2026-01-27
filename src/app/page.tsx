@@ -2,7 +2,7 @@
   "use client";
   import { useState, useEffect, useRef } from 'react';
   import html2canvas from 'html2canvas';
-  import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, type NovatedLeaseInputs } from '@/utils/leaseMath';
+  import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, pmt, type NovatedLeaseInputs } from '@/utils/leaseMath';
 
 const paymentFrequencies = [
   { label: 'Weekly', value: 52 },
@@ -84,6 +84,37 @@ export default function HomePage() {
     return isDarkMode ? darkColor : lightColor;
   };
 
+  // Helper function to calculate payment at 8% effective rate
+  const calculatePaymentAt8Percent = () => {
+    // Use shared lease math to ensure identical logic to the effective rate calculator
+    try {
+      const financedAmount = results.financedAmount || 0;
+      const residual = results.residualExclGst || 0;
+      const paymentsPerYear = inputs.paymentsPerYear || 12;
+      const leaseTermYears = inputs.leaseTermYears || 0;
+      const monthsDeferred = typeof inputs.monthsDeferred === 'number' ? inputs.monthsDeferred : 2;
+
+      if (financedAmount > 0 && leaseTermYears > 0) {
+        let payment = calculateBYOPayment({
+          financedAmount,
+          residualExclGst: residual,
+          paymentsPerYear,
+          leaseTermYears,
+          monthsDeferred,
+          interestRate: 0.08,
+        });
+        // If running costs include GST, add GST to the payment
+        if (runningCostsIncludeGst) {
+          payment = payment * 1.1;
+        }
+        return payment;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Save quote handler
   const handleSaveQuote = () => {
     const quoteName = prompt('Enter a name for this quote:');
@@ -159,6 +190,7 @@ export default function HomePage() {
     setAnnualSalary(undefined);
     setPackageCap(undefined);
     setNlProvider('');
+    setSelectedFrequency(12);
 
     if (typeof window !== 'undefined') {
       localStorage.removeItem('novatedLeaseInputs');
@@ -166,6 +198,7 @@ export default function HomePage() {
       localStorage.removeItem('novatedLeaseAnnualSalary');
       localStorage.removeItem('novatedLeasePackageCap');
       localStorage.removeItem('novatedLeaseNlProvider');
+      localStorage.removeItem('novatedLeaseSelectedFrequency');
     }
   };
 
@@ -208,6 +241,10 @@ export default function HomePage() {
         setAnnualSalary(decoded.annualSalary);
         setPackageCap(decoded.packageCap);
         setIsEv(decoded.isEv ?? false);
+        // Restore frequency from shared state
+        if (decoded.inputs?.paymentsPerYear) {
+          setSelectedFrequency(decoded.inputs.paymentsPerYear);
+        }
       }
     }
   }, []); // Run only on mount
@@ -1600,35 +1637,153 @@ export default function HomePage() {
 
               return (
                 <div className="card" style={containerStyle}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: '700', fontSize: '18px', marginTop: '12px' }}>Effective Interest Rate</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ fontWeight: 700, color: pctColor }}>{status}</div>
-                      <details style={{ fontSize: '12px' }}>
-                        <summary style={{ listStyle: 'none', cursor: 'pointer', color: getTextColor('#666'), padding: 0, margin: 0 }}>ⓘ</summary>
-                        <div style={{ padding: '8px', background: getBgColor('#ffffff'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px', color: getTextColor('#333') }}>
-                          <div><b>Competitive:</b> &lt; 10%</div>
-                          <div><b>Elevated:</b> 10%–13.99%</div>
-                          <div><b>High:</b> ≥ 14%</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '18px', marginTop: '12px' }}>Effective Interest Rate</div>
+                      {showPaymentError ? (
+                        <div style={{ marginTop: 12 }}>
+                          <div className="error-msg">Payment amount too low or payment frequency incorrect</div>
                         </div>
-                      </details>
+                      ) : null}
+                      <div className="small" style={{ marginTop: '12px', color: getTextColor('#666') }}>
+                        Calculated based on values entered
+                      </div>
+                      {baseRate !== null && (
+                        <div className="small" style={{ marginTop: '10px', marginBottom: '12px' , color: getTextColor('#666') }}>
+                          <b>Base Rate:</b> {(baseRate * 100).toFixed(2)}% (fees included in finance amount)
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <div style={{ fontSize: '48px', fontWeight: '800', color: pctColor, textAlign: 'right', lineHeight: '1' }}>
+                        {pct !== null ? pct.toFixed(2) + '%' : 'N/A'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                        <div style={{ fontWeight: 700, color: pctColor, fontSize: '14px' }}>{status}</div>
+                        <details style={{ fontSize: '12px' }}>
+                          <summary style={{ listStyle: 'none', cursor: 'pointer', color: getTextColor('#666'), padding: 0, margin: 0 }}>ⓘ</summary>
+                          <div style={{ padding: '8px', background: getBgColor('#ffffff'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px', color: getTextColor('#333') }}>
+                            <div><b>Competitive:</b> &lt; 10%</div>
+                            <div><b>Elevated:</b> 10%–13.99%</div>
+                            <div><b>High:</b> ≥ 14%</div>
+                          </div>
+                        </details>
+                      </div>
                     </div>
                   </div>
-                  {showPaymentError ? (
-                    <div style={{ marginTop: 12 }}>
-                      <div className="error-msg">Payment amount too low or payment frequency incorrect</div>
-                    </div>
-                  ) : null}
-                  <div style={{ fontSize: '28px', fontWeight: '800', marginTop: '12px', color: pctColor }}>
-                    {pct !== null ? pct.toFixed(2) + '%' : 'N/A'}
-                  </div>
-                  <div className="small" style={{ marginTop: '4px', color: getTextColor('#666') }}>
-                    Calculated based on values entered
-                  </div>
-                  {baseRate !== null && (
-                    <div className="small" style={{ marginTop: '10px', marginBottom: '12px' , color: getTextColor('#666') }}>
-                      <b>Base Rate:</b> {(baseRate * 100).toFixed(2)}% (fees included in finance amount)
-                    </div>
+                  {pct !== null && (
+                    <details style={{ marginTop: '16px', cursor: 'pointer' }}>
+                      <summary style={{ fontWeight: 600, color: pctColor, fontSize: '14px', cursor: 'pointer' }}>
+                        {status === 'High' && '💡 Your rate is high - here\'s how to reduce it'}
+                        {status === 'Elevated' && '💡 Your rate is elevated - consider negotiating'}
+                        {status === 'Competitive' && '✨ Your rate is competitive, but you can still negotiate'}
+                      </summary>
+                      <div style={{ marginTop: '12px', padding: '12px', background: getBgColor('#f8f9fa', '#252525'), borderRadius: '6px', fontSize: '13px', lineHeight: '1.6', color: getTextColor('#333') }}>
+                        {status === 'High' && (
+                          <>
+                            <p style={{ margin: '0 0 8px 0' }}><b>A good effective rate for a novated lease is around 8%.</b> Here's what you could be paying:</p>
+                            <div style={{ margin: '12px 0', padding: '8px', background: getBgColor('#ffffff', '#1a1a1a'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px' }}>
+                              {(() => {
+                                const frequencyPayment = calculatePaymentAt8Percent();
+                                if (frequencyPayment !== null) {
+                                  const paymentsPerYear = inputs.paymentsPerYear || 12;
+                                  return (
+                                    <div>
+                                      <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
+                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
+                                        {(runningCostsIncludeGst) && (
+                                          <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return <p style={{ margin: 0, color: getTextColor('#999') }}>Enter loan details to calculate</p>;
+                              })()}
+                            </div>
+                            <p style={{ margin: '12px 0 8px 0' }}>Ways to get to 8% or lower:</p>
+                            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                              <li>Negotiate with your novated lease provider for a lower interest rate</li>
+                              <li>Get quotes from 2-3 competitive providers to use as leverage —
+                                <a href="https://www1.my.commbank.com.au/netbank/container/ESD/AssetFinance.Quote/ContainerLaunch?entry=CB&product=nl" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>Commonwealth</a>
+                                <a href="https://www.toyotafleetmanagement.com.au/novated-lease/calculator" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Toyota Fleet</a>
+                                <a href="https://millarx.com.au/novated-leasing" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Millarx</a>
+                              </li>
+                              <li>Check if your employer has preferred provider agreements with better rates</li>
+                              <li>Review all fees - some can be negotiated or removed</li>
+                            </ul>
+                          </>
+                        )}
+                        {status === 'Elevated' && (
+                          <>
+                            <p style={{ margin: '0 0 8px 0' }}><b>A good effective rate for a novated lease is around 8%.</b> Here's what you could be paying:</p>
+                            <div style={{ margin: '12px 0', padding: '8px', background: getBgColor('#ffffff', '#1a1a1a'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px' }}>
+                              {(() => {
+                                const frequencyPayment = calculatePaymentAt8Percent();
+                                if (frequencyPayment !== null) {
+                                  const paymentsPerYear = inputs.paymentsPerYear || 12;
+                                  return (
+                                    <div>
+                                      <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
+                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
+                                        {(runningCostsIncludeGst) && (
+                                          <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return <p style={{ margin: 0, color: getTextColor('#999') }}>Enter loan details to calculate</p>;
+                              })()}
+                            </div>
+                            <p style={{ margin: '12px 0 8px 0' }}>Ways to get closer to 8%:</p>
+                            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                              <li>Negotiate with your current provider</li>
+                              <li>Get quotes from competitve providers —
+                                <a href="https://www1.my.commbank.com.au/netbank/container/ESD/AssetFinance.Quote/ContainerLaunch?entry=CB&product=nl" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6 }}>Commonwealth</a>
+                                <a href="https://www.toyotafleetmanagement.com.au/novated-lease/calculator" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Toyota Fleet</a>
+                                <a href="https://millarx.com.au/novated-leasing" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>Millarx</a>
+                              </li>
+                              <li>Review all fees - ask which ones can be removed</li>
+                              <li>Consider a larger upfront payment</li>
+                            </ul>
+                          </>
+                        )}
+                        {status === 'Competitive' && (
+                          <>
+                            <p style={{ margin: '0 0 8px 0' }}><b>A good effective rate for a novated lease is around 8%.</b> You're already competitive:</p>
+                            <div style={{ margin: '12px 0', padding: '8px', background: getBgColor('#ffffff', '#1a1a1a'), border: `1px solid ${getBorderColor('#ddd')}`, borderRadius: '4px' }}>
+                              {(() => {
+                                const frequencyPayment = calculatePaymentAt8Percent();
+                                if (frequencyPayment !== null) {
+                                  const paymentsPerYear = inputs.paymentsPerYear || 12;
+                                  return (
+                                    <div>
+                                      <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#2e7d32' }}>
+                                        {formatCurrency(frequencyPayment)} per {paymentFrequencies.find(f => f.value === paymentsPerYear)?.label || 'period'}
+                                        <span style={{ marginLeft: 8, fontWeight: 400, fontSize: '12px', color: getTextColor('#777') }}>— vs your current {formatCurrency(inputs.paymentAmount || 0)} per period</span>
+                                        {(runningCostsIncludeGst) && (
+                                          <span style={{ marginLeft: 8, fontStyle: 'italic', fontSize: '12px', color: getTextColor('#777') }}>(includes GST)</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return <p style={{ margin: 0, color: getTextColor('#999') }}>Enter loan details to calculate</p>;
+                              })()}
+                            </div>
+                            <p style={{ margin: '12px 0 8px 0' }}>Still room to negotiate:</p>
+                            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                              <li>Even competitive rates can be negotiated - it never hurts to ask</li>
+                              <li>Mention you're comparing multiple providers</li>
+                              <li>Review all fees to ensure you're getting the best overall deal</li>
+                            </ul>
+                          </>
+                        )}
+                      </div>
+                    </details>
                   )}
                 </div>
               );

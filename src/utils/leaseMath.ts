@@ -73,7 +73,7 @@ export function calculateNovatedLease(inputs: NovatedLeaseInputs): NovatedLeaseR
 }
 
 // Calculate payment using PMT formula
-function pmt(rate: number, nper: number, pv: number, fv: number, type: number): number {
+export function pmt(rate: number, nper: number, pv: number, fv: number, type: number): number {
       if (rate === 0) {
             return -(pv + fv) / nper;
       }
