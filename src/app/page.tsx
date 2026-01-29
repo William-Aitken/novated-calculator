@@ -1403,7 +1403,7 @@ export default function HomePage() {
                 <div className="divider" />
               </li>
               <li className="form-row">
-                <span className="form-label">Documentation Fee</span>
+                <span className="form-label">Financed Fees</span>
                 <input
                   type="number"
                   value={inputs.documentationFee || ''}
@@ -1626,7 +1626,7 @@ export default function HomePage() {
                     <span style={{ fontWeight: '500' }}>-{formatCurrency(minValue)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span>Add: Documentation Fee</span>
+                    <span>Add: Financed Fees</span>
                     <span style={{ fontWeight: '500' }}>+{formatCurrency(inputs.documentationFee || 0)}</span>
                   </div>
                 </div>
