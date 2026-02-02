@@ -120,6 +120,17 @@ export async function OPTIONS() {
   });
 }
 
+// Default export: handle any method and dispatch to named handlers.
+// Some deployment platforms may route methods differently; a default
+// handler ensures POST requests still reach our code.
+export default async function handler(req: Request) {
+  const method = (req.method || 'GET').toUpperCase();
+  if (method === 'POST') return await POST(req);
+  if (method === 'GET') return await GET();
+  if (method === 'OPTIONS') return await OPTIONS();
+  return new NextResponse('Method Not Allowed', { status: 405 });
+}
+
 Important: Return strictly valid JSON with only the keys above (you may omit optional keys). Use numeric JSON types for amounts and integers, booleans for isEv, and omit currency symbols. Example valid output:
 {
   "parsedFields": {
