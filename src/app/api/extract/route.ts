@@ -69,8 +69,8 @@ export async function POST(req: Request) {
     // The model should return ONLY valid JSON (no explanatory text) following the schema below.
     prompt = `You will be given an image or PDF containing a novated lease / vehicle quote. Extract the following fields when they appear in the document:
 
-- leaseTermYears: integer number of years (e.g. 3, 4, 5). Prefer whole years. It may be written as "36 months" etc — convert to years.
-- fbtBaseValue: AUD amount (numeric) used as the FBT base value (no currency symbols in JSON).
+- leaseTermYears: integer number of years (e.g. 3, 4, 5). Prefer whole years. It may be written as "36 months" etc — convert to years. if not avaialble look for residual %/percent, where leaseTermYears is rounded (8 - residual% / 9.337)
+- fbtBaseValue: AUD amount (numeric) used as the FBT base value (no currency symbols in JSON). If FBT base value not available, looks for GST amount then multiply it by 11 and return it as FBT base value.
 - driveawayCost: AUD amount (numeric) for driveaway price.
 - residualExcl: AUD residual value excluding GST (numeric).
 - residualIncl: AUD residual value including GST (numeric).
