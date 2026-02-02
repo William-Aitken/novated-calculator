@@ -15,7 +15,42 @@ export async function POST(req: Request) {
     }
 
     const arr = await file.arrayBuffer();
-    const b64 = Buffer.from(arr).toString('base64');
+    // Robust base64 conversion: Buffer may be unavailable in some runtimes (Edge).
+    const base64ArrayBuffer = (arrayBuffer: ArrayBuffer) => {
+      const bytes = new Uint8Array(arrayBuffer);
+      const chunkSize = 0x8000; // arbitrary chunk size
+      let result = '';
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        result += String.fromCharCode.apply(null, Array.prototype.slice.call(bytes, i, i + chunkSize));
+      }
+      if (typeof btoa !== 'undefined') return btoa(result);
+      // Node-safe fallback using Buffer when available
+      if (typeof Buffer !== 'undefined') return Buffer.from(arrayBuffer).toString('base64');
+      // final fallback: build base64 via URL API
+      try {
+        const blob = new Blob([arrayBuffer]);
+        // Note: blob.arrayBuffer and FileReader may not be available in all runtimes
+        // but this is a last-resort attempt.
+        // Convert blob -> dataURL synchronously isn't available; throw to go to Buffer fallback.
+      } catch (_) {
+        // ignore
+      }
+      // As a final attempt, use Buffer.from if global Buffer exists
+      if ((globalThis as any)?.Buffer) return (globalThis as any).Buffer.from(arrayBuffer).toString('base64');
+      throw new Error('Unable to convert file to base64 in this runtime');
+    };
+
+    let b64: string;
+    try {
+      if (typeof Buffer !== 'undefined') {
+        b64 = Buffer.from(arr).toString('base64');
+      } else {
+        b64 = base64ArrayBuffer(arr);
+      }
+    } catch (e) {
+      console.error('Base64 conversion failed:', e);
+      return NextResponse.json({ error: 'Server runtime does not support file base64 conversion', prompt }, { status: 500 });
+    }
     const mime = (file as any).type || 'application/octet-stream';
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
