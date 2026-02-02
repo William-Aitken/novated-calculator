@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 // - GEMINI_MODEL : model name to call (defaults to 'gemini-1.5' if set)
 
 export async function POST(req: Request) {
+  console.log('Route /api/extract POST invoked');
   let prompt: string | null = null;
   try {
     const form = await req.formData();
@@ -102,6 +103,21 @@ Output schema (REQUIRED): return a single JSON object with these top-level keys 
   "confidences": { /* map of extracted keys to confidence between 0.0 and 1.0 */ },
   "rawText": "..." /* optional: short excerpt of the model's textual output or OCR text */, 
   "notes": "..." /* optional: brief notes about assumptions or parsing issues */
+}
+
+export async function GET() {
+  return NextResponse.json({ ok: true, msg: 'API extract route is reachable. Use POST to upload files.' });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }
 
 Important: Return strictly valid JSON with only the keys above (you may omit optional keys). Use numeric JSON types for amounts and integers, booleans for isEv, and omit currency symbols. Example valid output:
