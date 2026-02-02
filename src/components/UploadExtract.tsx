@@ -94,23 +94,21 @@ export default function UploadExtract({ onExtract, onResponse }: { onExtract: (f
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
       >
         <input ref={inputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} style={{ display: 'none' }} />
-        <div style={{ padding: '10px 14px', borderRadius: 8, minWidth: 160 }}>
-          <strong style={{ display: 'block' }}>{loading ? 'Uploading...' : 'Upload quote (PDF / image)'}</strong>
-          <span style={{ fontSize: 12, color: '#666' }}>Tap to select or drop file here</span>
+        <div className="upload-button-content">
+          <img src="/gemini.svg" alt="Gemini" className="upload-icon" aria-hidden />
+          <div className="upload-label-wrap">
+            <strong className="upload-label">{loading ? 'Uploading...' : 'Upload quote'}</strong>
+            <span className="upload-subtext">Use Gemini to analyse</span>
+          </div>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 120 }}>
         {fileName && <span style={{ fontSize: 12, color: '#666' }}>{fileName}</span>}
         {message && <span style={{ fontSize: 12, color: '#333' }}>{message}</span>}
       </div>
-      {debugResponse && (
-        <pre style={{ marginTop: 8, maxHeight: 240, overflow: 'auto', background: '#f6f8fa', padding: 8, borderRadius: 6 }}>
-          {JSON.stringify(debugResponse, null, 2)}
-        </pre>
-      )}
+      {/* debugResponse removed to avoid persistent top-right debug panel */}
     </div>
   );
 }

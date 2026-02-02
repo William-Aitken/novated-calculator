@@ -63,8 +63,19 @@ export default function HomePage() {
 
   const handleGeminiResponse = (res: any) => {
     setGeminiResponse(res);
+    // Ensure any right-hand sidebar (saved quotes) is closed when showing the Gemini modal
+    setShowMenu(false);
     setShowGeminiModal(true);
   };
+
+  // Close Gemini modal on Escape key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showGeminiModal) setShowGeminiModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showGeminiModal]);
 
   // Update theme in document
   useEffect(() => {
@@ -1085,8 +1096,8 @@ export default function HomePage() {
   return (
     <main className="app-main" style={{ paddingRight: '32px', position: 'relative' }}>
       {showGeminiModal && (
-        <div className="gemini-modal" role="dialog" aria-modal="true">
-          <div className="gemini-modal__content card">
+        <div className="gemini-modal" role="dialog" aria-modal="true" onClick={() => setShowGeminiModal(false)}>
+          <div className="gemini-modal__content card" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <h3 style={{ margin: 0 }}>Gemini API response</h3>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1108,38 +1119,98 @@ export default function HomePage() {
               </div>
             </div>
             <div style={{ marginTop: 12, maxHeight: '60vh', overflow: 'auto' }}>
-              {geminiResponse?.prompt && (
-                <div>
-                  <strong>Prompt sent:</strong>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.prompt)}</pre>
-                </div>
-              )}
+              {(() => {
+                const outer = geminiResponse?.parsedFields ?? geminiResponse ?? null;
+                const inner = outer?.parsedFields ?? outer ?? null;
+                const confidences = outer?.confidences ?? null;
+                if (!geminiResponse) return <div>No response content available.</div>;
 
-              {geminiResponse?.rawText && (
-                <div style={{ marginTop: 8 }}>
-                  <strong>Model raw text:</strong>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.rawText)}</pre>
-                </div>
-              )}
+                return (
+                  <div>
+                    {inner && (
+                      <div>
+                        <h4 style={{ margin: 0 }}>Extracted values</h4>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                          <tbody>
+                            {inner.nlProvider !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600, width: '40%' }}>Provider</td>
+                                <td style={{ padding: 6 }}>{String(inner.nlProvider)}</td>
+                              </tr>
+                            )}
+                            {inner.leaseTermYears !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>Lease term (years)</td>
+                                <td style={{ padding: 6 }}>{String(inner.leaseTermYears)}</td>
+                              </tr>
+                            )}
+                            {inner.fbtBaseValue !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>FBT base value</td>
+                                <td style={{ padding: 6 }}>${Number(inner.fbtBaseValue).toLocaleString()}</td>
+                              </tr>
+                            )}
+                            {inner.driveawayCost !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>Driveaway</td>
+                                <td style={{ padding: 6 }}>${Number(inner.driveawayCost).toLocaleString()}</td>
+                              </tr>
+                            )}
+                            {inner.residualIncl !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>Residual (incl GST)</td>
+                                <td style={{ padding: 6 }}>${Number(inner.residualIncl).toLocaleString()}</td>
+                              </tr>
+                            )}
+                            {inner.paymentAmount !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>Payment (per period)</td>
+                                <td style={{ padding: 6 }}>${Number(inner.paymentAmount).toLocaleString(undefined, {maximumFractionDigits:2})} ({inner.paymentsPerYear || 'N/A'} p.a.)</td>
+                              </tr>
+                            )}
+                            {inner.annualSalary !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>Annual salary</td>
+                                <td style={{ padding: 6 }}>${Number(inner.annualSalary).toLocaleString()}</td>
+                              </tr>
+                            )}
+                            {inner.isEv !== undefined && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600 }}>EV</td>
+                                <td style={{ padding: 6 }}>{inner.isEv ? 'Yes' : 'No'}</td>
+                              </tr>
+                            )}
+                            {inner.runningCosts && (
+                              <tr>
+                                <td style={{ padding: 6, fontWeight: 600, verticalAlign: 'top' }}>Running costs</td>
+                                <td style={{ padding: 6 }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <tbody>
+                                      {Object.entries(inner.runningCosts).map(([k, v]) => (
+                                        <tr key={k}><td style={{ padding: 4, width: '50%', textTransform: 'capitalize' }}>{k}</td><td style={{ padding: 4 }}>${Number(v).toLocaleString()}</td></tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-              {geminiResponse?.parsedFields && (
-                <div style={{ marginTop: 8 }}>
-                  <strong>Parsed fields:</strong>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{JSON.stringify(geminiResponse.parsedFields.parsedFields ?? geminiResponse.parsedFields, null, 2)}</pre>
-                </div>
-              )}
+                    <details style={{ marginTop: 12 }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Full Prompt Sent</summary>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.prompt)}</pre>
+                    </details>
 
-              {geminiResponse?.serviceResponse && (
-                <div style={{ marginTop: 8 }}>
-                  <details>
-                    <summary>Full service response (debug)</summary>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(geminiResponse.serviceResponse, null, 2)}</pre>
-                  </details>
-                </div>
-              )}
-              {!geminiResponse?.rawText && !geminiResponse?.parsedFields && !geminiResponse?.serviceResponse && (
-                <div>No response content available.</div>
-              )}
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Model Output / Full Response</summary>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{geminiResponse.rawText ?? JSON.stringify(geminiResponse.serviceResponse ?? geminiResponse.fullServiceResponse ?? {}, null, 2)}</pre>
+                    </details>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1183,7 +1254,7 @@ export default function HomePage() {
             {isMobile ? '💾' : '💾 Save'}
           </button>
 
-          <UploadExtract onExtract={handleExtraction} onResponse={handleGeminiResponse} />
+          {/* Upload component removed from here and placed above Lease Details */}
 
           <button
             onClick={handleClearInputs}
@@ -1458,6 +1529,9 @@ export default function HomePage() {
       <div className="grid grid-2" style={{ marginTop: '32px' }} id="calculator-content">
         {/* Input Section */}
         <div style={{ paddingBottom: '32px' }}>
+          <div style={{ marginBottom: 12 }}>
+            <UploadExtract onExtract={handleExtraction} onResponse={handleGeminiResponse} />
+          </div>
           <h2>Lease Details</h2>
           <div className="card" style={{ background: getBgColor('#fbfbfb'), border: `1px solid ${getBorderColor('#d0d0d0')}`, padding: '16px' }}>
             <form style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>

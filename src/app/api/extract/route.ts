@@ -52,7 +52,7 @@ Also extract the applicant's annual salary if present in the quote or accompanyi
               annualSalary: { type: 'number' },
 
 Also optionally extract if present:
-- isEv: boolean (true if the quote explicitly marks EV/electric vehicle or there is no post tax deduction under the summary of packaged or in the budgets section) False if PHEV or ICE explicitly stated.
+- isEv: boolean (true if the quote explicitly marks EV/electric vehicle or if the "post tax deduction" or "gst on post tax" under the summary of package/novated lease is 0) False if PHEV or ICE explicitly stated.
 - runningCosts: object with optional numeric fields: managementFee, maintenance, tyres, rego, insurance, chargingFuel, other (AUD amounts).
 
 Extraction rules:
@@ -193,7 +193,48 @@ If you cannot find any of the requested fields, return a JSON object with an emp
         },
       };
 
-      const result = await ai.models.generateContent(request);
+      const triedModels: string[] = [];
+      const tryGenerate = async (modelName: string) => {
+        request.model = modelName;
+        triedModels.push(modelName);
+        return await ai.models.generateContent(request);
+      };
+
+      // Models to try if the primary model is rate-limited or unavailable.
+      const FALLBACK_MODELS = [
+        'models/gemini-2.5-flash',
+        'models/gemini-2.5-flash-lite',
+      ];
+
+      let result: any = null;
+      try {
+        result = await tryGenerate(GEMINI_MODEL);
+      } catch (e: any) {
+        // Detect rate-limit / quota errors and retry with fallback models
+        const msg = String(e?.message || e || '').toLowerCase();
+        const isLimit = /quota|limit|exhausted|rate_limit|rate limit|429/.test(msg) || e?.status === 429 || e?.code === 429 || e?.statusCode === 429 || e?.response?.status === 429;
+        if (isLimit) {
+          console.warn('Primary model appears rate-limited; attempting fallback models', FALLBACK_MODELS);
+          let lastErr: any = e;
+          for (const fb of FALLBACK_MODELS) {
+            try {
+              result = await tryGenerate(fb);
+              lastErr = null;
+              break;
+            } catch (e2: any) {
+              lastErr = e2;
+              console.warn('Fallback model failed:', fb, e2?.message ?? e2);
+            }
+          }
+          if (lastErr) {
+            fullServiceResponse = lastErr;
+            throw lastErr;
+          }
+        } else {
+          fullServiceResponse = e;
+          throw e;
+        }
+      }
       fullServiceResponse = result;
 
       // Defensive normalization of SDK response shapes
