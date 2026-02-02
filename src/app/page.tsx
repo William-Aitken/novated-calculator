@@ -1,8 +1,8 @@
-
-  "use client";
-  import { useState, useEffect, useRef } from 'react';
-  import html2canvas from 'html2canvas';
-  import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, pmt, type NovatedLeaseInputs } from '@/utils/leaseMath';
+"use client";
+import { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
+import { calculateNovatedLease, calculateEffectiveInterestRate, calculateBYOPayment, pmt, type NovatedLeaseInputs } from '@/utils/leaseMath';
+import UploadExtract from '@/components/UploadExtract';
 
 const paymentFrequencies = [
   { label: 'Weekly', value: 52 },
@@ -56,6 +56,15 @@ export default function HomePage() {
     }
     return [];
   });
+
+  // Gemini API response modal state
+  const [geminiResponse, setGeminiResponse] = useState<any | null>(null);
+  const [showGeminiModal, setShowGeminiModal] = useState<boolean>(false);
+
+  const handleGeminiResponse = (res: any) => {
+    setGeminiResponse(res);
+    setShowGeminiModal(true);
+  };
 
   // Update theme in document
   useEffect(() => {
@@ -334,6 +343,115 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error exporting as image:', error);
       alert('Failed to export as image. Please try again.');
+    }
+  };
+
+  // Handler called when the upload component returns extracted fields
+  const handleExtraction = (fields: Partial<NovatedLeaseInputs> | null) => {
+    if (!fields) return;
+
+    // Clear previous inputs and persisted values before applying AI-provided values
+    const clearedInputs: NovatedLeaseInputs = {
+      driveawayCost: 0,
+      residualExcl: 0,
+      residualIncl: 0,
+      fbtBaseValue: 0,
+      documentationFee: 0,
+      leaseTermYears: 5,
+      paymentAmount: 0,
+      paymentsPerYear: 12,
+      monthsDeferred: 2,
+    };
+    setInputs(clearedInputs);
+    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseInputs', JSON.stringify(clearedInputs));
+
+    setRunningCosts(defaultRunningCosts);
+    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(defaultRunningCosts));
+
+    setIsEv(false);
+    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', 'false');
+
+    setSelectedFrequency(12);
+    if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseSelectedFrequency', '12');
+
+    setAnnualSalary(undefined);
+    if (typeof window !== 'undefined') localStorage.removeItem('novatedLeaseAnnualSalary');
+
+    setNlProvider('');
+    if (typeof window !== 'undefined') localStorage.removeItem('novatedLeaseNlProvider');
+    const normalized: any = {};
+    if (fields.leaseTermYears !== undefined) normalized.leaseTermYears = Number(fields.leaseTermYears);
+    if (fields.fbtBaseValue !== undefined) normalized.fbtBaseValue = Number(fields.fbtBaseValue);
+    if (fields.driveawayCost !== undefined) normalized.driveawayCost = Number(fields.driveawayCost);
+    if (fields.residualExcl !== undefined) normalized.residualExcl = Number(fields.residualExcl);
+    if (fields.residualIncl !== undefined) normalized.residualIncl = Number(fields.residualIncl);
+    if (fields.documentationFee !== undefined) normalized.documentationFee = Number(fields.documentationFee);
+    if (fields.financedAmountManual !== undefined) normalized.financedAmountManual = Number(fields.financedAmountManual);
+    if (fields.paymentAmount !== undefined) normalized.paymentAmount = Number(fields.paymentAmount);
+    if (fields.paymentsPerYear !== undefined) normalized.paymentsPerYear = Number(fields.paymentsPerYear);
+    if (fields.monthsDeferred !== undefined) normalized.monthsDeferred = Number(fields.monthsDeferred);
+
+    setInputs(prev => {
+      const updated = { ...prev, ...normalized };
+      if (typeof window !== 'undefined') {
+        const saveCopy: Record<string, any> = { ...updated };
+        Object.keys(saveCopy).forEach(k => { if (saveCopy[k] === undefined) saveCopy[k] = null; });
+        localStorage.setItem('novatedLeaseInputs', JSON.stringify(saveCopy));
+      }
+      return updated;
+    });
+
+    // Apply running costs if provided by AI
+    if ((fields as any).runningCosts) {
+      const rc = (fields as any).runningCosts as Record<string, any>;
+      const normalizedRc: RunningCosts = { ...defaultRunningCosts };
+      Object.keys(normalizedRc).forEach((k) => {
+        const val = rc[k as keyof RunningCosts];
+        normalizedRc[k as keyof RunningCosts] = (val === null || val === undefined || val === '') ? undefined : Number(val);
+      });
+      setRunningCosts(normalizedRc);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novatedLeaseRunningCosts', JSON.stringify(normalizedRc));
+      }
+    }
+
+    // Apply EV flag if present
+    if ((fields as any).isEv !== undefined) {
+      const v = Boolean((fields as any).isEv);
+      setIsEv(v);
+      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseIsEv', v ? 'true' : 'false');
+    }
+
+    // Apply paymentsPerYear -> selectedFrequency mapping
+    if ((fields as any).paymentsPerYear !== undefined) {
+      const n = Number((fields as any).paymentsPerYear);
+      if (Number.isFinite(n) && n > 0) {
+        setSelectedFrequency(n);
+        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseSelectedFrequency', String(n));
+      }
+    }
+
+    // Apply novated lease provider name if provided by AI
+    const providerVal = (fields as any).nlProvider ?? (fields as any).provider ?? (fields as any).providerName ?? (fields as any).novatedProvider;
+    if (providerVal !== undefined && providerVal !== null) {
+      const pv = String(providerVal);
+      // Use existing handler to persist
+      try { handleNlProviderChange(pv); } catch { setNlProvider(pv); if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseNlProvider', pv); }
+    }
+
+    // Apply annual salary if present
+    if ((fields as any).annualSalary !== undefined) {
+      const s = Number((fields as any).annualSalary);
+      if (Number.isFinite(s)) {
+        setAnnualSalary(s);
+        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseAnnualSalary', String(s));
+      }
+    } else if ((fields as any).salary !== undefined) {
+      const s = Number((fields as any).salary);
+      if (Number.isFinite(s)) {
+        setAnnualSalary(s);
+        if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseAnnualSalary', String(s));
+      }
     }
   };
 
@@ -966,6 +1084,66 @@ export default function HomePage() {
 
   return (
     <main className="app-main" style={{ paddingRight: '32px', position: 'relative' }}>
+      {showGeminiModal && (
+        <div className="gemini-modal" role="dialog" aria-modal="true">
+          <div className="gemini-modal__content card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ margin: 0 }}>Gemini API response</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    if (geminiResponse?.parsedFields) {
+                      const inner = geminiResponse.parsedFields.parsedFields ?? geminiResponse.parsedFields;
+                      handleExtraction(inner);
+                      setShowGeminiModal(false);
+                    }
+                  }}
+                  className="btn"
+                  disabled={!geminiResponse?.parsedFields}
+                  title={geminiResponse?.parsedFields ? 'Apply parsed values to form' : 'No parsed fields available'}
+                >
+                  Use values from AI
+                </button>
+                <button onClick={() => setShowGeminiModal(false)} className="btn">Close</button>
+              </div>
+            </div>
+            <div style={{ marginTop: 12, maxHeight: '60vh', overflow: 'auto' }}>
+              {geminiResponse?.prompt && (
+                <div>
+                  <strong>Prompt sent:</strong>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.prompt)}</pre>
+                </div>
+              )}
+
+              {geminiResponse?.rawText && (
+                <div style={{ marginTop: 8 }}>
+                  <strong>Model raw text:</strong>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.rawText)}</pre>
+                </div>
+              )}
+
+              {geminiResponse?.parsedFields && (
+                <div style={{ marginTop: 8 }}>
+                  <strong>Parsed fields:</strong>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{JSON.stringify(geminiResponse.parsedFields.parsedFields ?? geminiResponse.parsedFields, null, 2)}</pre>
+                </div>
+              )}
+
+              {geminiResponse?.serviceResponse && (
+                <div style={{ marginTop: 8 }}>
+                  <details>
+                    <summary>Full service response (debug)</summary>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{JSON.stringify(geminiResponse.serviceResponse, null, 2)}</pre>
+                  </details>
+                </div>
+              )}
+              {!geminiResponse?.rawText && !geminiResponse?.parsedFields && !geminiResponse?.serviceResponse && (
+                <div>No response content available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top navigation with buttons */}
       <div style={{
         display: 'flex',
@@ -1004,6 +1182,8 @@ export default function HomePage() {
           >
             {isMobile ? '💾' : '💾 Save'}
           </button>
+
+          <UploadExtract onExtract={handleExtraction} onResponse={handleGeminiResponse} />
 
           <button
             onClick={handleClearInputs}

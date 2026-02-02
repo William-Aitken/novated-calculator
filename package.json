@@ -11,6 +11,8 @@
     "deploy": "gh-pages -d out"
   },
   "dependencies": {
+    "@google-ai/generativelanguage": "^3.7.0",
+    "@google/genai": "^1.39.0",
     "html2canvas": "^1.4.1",
     "next": "latest",
     "react": "latest",
