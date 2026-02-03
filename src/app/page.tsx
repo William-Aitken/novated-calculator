@@ -9,6 +9,7 @@ const paymentFrequencies = [
   { label: 'Fortnightly', value: 26 },
   { label: 'Monthly', value: 12 },
   { label: 'Yearly', value: 1 },
+  { label: 'Bimonthly', value: 24 },
 ];
 
 interface SavedQuote {
@@ -321,12 +322,17 @@ export default function HomePage() {
     if (!contentElement) return;
 
     try {
-      // Create a wrapper with padding for export
+      // Create a wrapper with padding for export and set a narrower export width
       const wrapper = document.createElement('div');
       wrapper.style.padding = '24px';
       wrapper.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
       wrapper.style.minHeight = '100vh';
       wrapper.style.boxSizing = 'border-box';
+      // Make export narrower so layout resembles a printed report/mobile view
+      const exportWidth = '1280px';
+      wrapper.style.width = exportWidth;
+      wrapper.style.maxWidth = exportWidth;
+      wrapper.style.margin = '24px auto';
       const clonedContent = contentElement.cloneNode(true) as HTMLElement;
       
       // Expand all details elements in the cloned content
@@ -334,6 +340,138 @@ export default function HomePage() {
       detailsElements.forEach((details) => {
         details.setAttribute('open', '');
       });
+
+      // Copy values and checked state from original inputs/selects/textareas to cloned ones.
+      try {
+        const originals = contentElement.querySelectorAll('input,textarea,select');
+        const clones = clonedContent.querySelectorAll('input,textarea,select');
+        originals.forEach((orig, idx) => {
+          let clone: Element | null = null;
+          // Prefer matching by id
+          const id = (orig as HTMLElement).id;
+          if (id) {
+            clone = clonedContent.querySelector(`#${CSS.escape(id)}`);
+          }
+          // Fallback to matching by name
+          if (!clone) {
+            const name = (orig as HTMLInputElement).name;
+            if (name) clone = clonedContent.querySelector(`[name="${name}"]`);
+          }
+          // Fallback to index
+          if (!clone) clone = clones[idx] ?? null;
+          if (!clone) return;
+
+          try {
+            if (orig instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
+              if (orig.type === 'checkbox' || orig.type === 'radio') {
+                clone.checked = orig.checked;
+              }
+              clone.value = orig.value;
+              clone.setAttribute('value', orig.value);
+            } else if (orig instanceof HTMLTextAreaElement && clone instanceof HTMLTextAreaElement) {
+              clone.value = orig.value;
+              clone.textContent = orig.value;
+            } else if (orig instanceof HTMLSelectElement && clone instanceof HTMLSelectElement) {
+              clone.value = orig.value;
+            }
+            // Copy visible text for elements that may display the value separately
+            if (clone instanceof HTMLElement && orig instanceof HTMLElement) {
+              const origText = orig.textContent || (orig as any).value || '';
+              if (origText && (!clone.textContent || clone.textContent.trim() !== origText.trim())) {
+                // Only overwrite small text nodes to avoid removing structure
+                if (clone.childElementCount === 0) clone.textContent = origText;
+              }
+              // Preserve width so long input values aren't clipped in the snapshot
+              try {
+                const cs = window.getComputedStyle(orig as HTMLElement);
+                if (cs && cs.width) (clone as HTMLElement).style.width = cs.width;
+              } catch (_) {
+                // ignore
+              }
+            }
+          } catch (_) {
+            // continue on any per-element error
+          }
+        });
+      } catch (e) {
+        // best-effort; do not fail export if mapping fails
+        console.warn('Input mapping for export failed', e);
+      }
+
+      // Replace cloned form controls with styled spans to avoid clipping/truncation
+      try {
+        const controls = clonedContent.querySelectorAll('input,textarea,select');
+        controls.forEach((ctrl) => {
+          try {
+            // Determine display text
+            let text = '';
+            if (ctrl instanceof HTMLInputElement) {
+              if (ctrl.type === 'checkbox' || ctrl.type === 'radio') {
+                text = ctrl.checked ? 'Yes' : 'No';
+              } else {
+                text = ctrl.value ?? ctrl.getAttribute('value') ?? '';
+              }
+            } else if (ctrl instanceof HTMLTextAreaElement) {
+              text = ctrl.value || ctrl.textContent || '';
+            } else if (ctrl instanceof HTMLSelectElement) {
+              const opt = ctrl.selectedOptions && ctrl.selectedOptions[0];
+              text = opt ? (opt.text || opt.value) : (ctrl.value || '');
+            }
+
+            // Create span to replace control
+            const span = document.createElement('span');
+            span.textContent = String(text ?? '');
+            span.style.display = 'inline-block';
+            span.style.whiteSpace = 'nowrap';
+            span.style.overflow = 'visible';
+            span.style.boxSizing = 'border-box';
+
+            // Copy basic font and box styles from original control and make it look like an input
+            try {
+              const cs = window.getComputedStyle(ctrl as HTMLElement);
+              span.style.fontFamily = cs.fontFamily;
+              span.style.fontSize = cs.fontSize;
+              span.style.fontWeight = cs.fontWeight;
+              span.style.color = cs.color;
+              // Input-like padding
+              span.style.padding = cs.padding && cs.padding !== '0px' ? cs.padding : '6px 10px';
+              // Use a subtle border to mimic input
+              span.style.border = cs.border && cs.border !== '0px none rgb(0, 0, 0)' ? cs.border : '1px solid #e6e9ee';
+              span.style.borderRadius = cs.borderRadius && cs.borderRadius !== '0px' ? cs.borderRadius : '8px';
+              span.style.backgroundColor = cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : '#fff';
+              // Avoid forcing an absolute min-width that can expand the table.
+              // Instead constrain the span to the cell width and allow wrapping if necessary.
+              span.style.minWidth = '0';
+              span.style.maxWidth = '100%';
+              span.style.whiteSpace = 'normal';
+              span.style.wordBreak = 'break-word';
+              // Preserve text alignment
+              span.style.textAlign = cs.textAlign as any;
+              // Ensure the span's height matches typical input line-height
+              span.style.lineHeight = cs.lineHeight || '20px';
+              span.style.display = 'inline-block';
+            } catch (_) {
+              // ignore style copy errors
+              span.style.padding = '6px 10px';
+              span.style.border = '1px solid #e6e9ee';
+              span.style.borderRadius = '8px';
+              span.style.backgroundColor = '#fff';
+            }
+
+            // Replace the control in the cloned DOM
+            try {
+              ctrl.replaceWith(span);
+            } catch (_) {
+              // fallback: append span next to control and hide control
+              try { (ctrl as HTMLElement).style.display = 'none'; (ctrl.parentNode as any)?.appendChild(span); } catch (_) {}
+            }
+          } catch (_) {
+            // per-control failure should not stop export
+          }
+        });
+      } catch (e) {
+        console.warn('Replacing form controls for export failed', e);
+      }
       
       wrapper.appendChild(clonedContent);
       document.body.appendChild(wrapper);
@@ -426,6 +564,65 @@ export default function HomePage() {
       }
     }
 
+    // If AI indicates separate GST inclusion flags for payment amount and running costs,
+    // set the running-costs selector from the runningCosts flag (preferred) and convert
+    // the payment amount value if it doesn't align with the running-costs flag.
+    const paymentFlagRaw = (fields as any).paymentAmountIncludeGst ?? (fields as any).paymentIncludeGst ?? null;
+    const runningFlagRaw = (fields as any).runningCostsIncludeGst ?? (fields as any).runningIncludeGst ?? null;
+    const paymentFlag = paymentFlagRaw === null ? null : Boolean(paymentFlagRaw);
+    const runningFlag = runningFlagRaw === null ? null : Boolean(runningFlagRaw);
+
+    // Determine selector value: prefer running flag if provided, otherwise fallback to payment flag
+    if (runningFlag !== null) {
+      setRunningCostsIncludeGst(runningFlag);
+      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', runningFlag ? 'true' : 'false');
+    } else if (paymentFlag !== null) {
+      // fallback: no running flag, set based on payment flag
+      setRunningCostsIncludeGst(paymentFlag);
+      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', paymentFlag ? 'true' : 'false');
+    }
+    // Only convert paymentAmount when the AI actually returned a paymentAmount value.
+    const paymentProvidedByAi = (fields as any).paymentAmount !== undefined;
+
+    // If payment flag provided by AI and AI also provided a payment amount, convert
+    // the payment amount to match the selector if needed. Also persist a record
+    // of whether the AI-provided payment amount includes GST (updated when conversion
+    // occurs or when AI supplied the flag).
+    if (paymentFlag !== null && paymentProvidedByAi) {
+      const selector = runningFlag !== null ? runningFlag : paymentFlag;
+      // If the AI's payment flag doesn't match the selector, convert the numeric value
+      let convertedOccured = false;
+      if (paymentFlag !== selector) {
+        // Adjust paymentAmount in current inputs state
+        setInputs(prev => {
+          const cur = Number(prev.paymentAmount) || 0;
+          let converted = cur;
+          if (paymentFlag === true && selector === false) {
+            // payment provided INCLUSIVE, but selector expects EXCLUSIVE -> divide by 1.1
+            converted = +(cur / 1.1);
+          } else if (paymentFlag === false && selector === true) {
+            // payment provided EXCLUSIVE, but selector expects INCLUSIVE -> multiply by 1.1
+            converted = +(cur * 1.1);
+          }
+          const updated = { ...prev, paymentAmount: Number(Math.round((converted + Number.EPSILON) * 100) / 100) };
+          if (typeof window !== 'undefined') {
+            const saveCopy: Record<string, any> = { ...updated };
+            Object.keys(saveCopy).forEach(k => { if (saveCopy[k] === undefined) saveCopy[k] = null; });
+            localStorage.setItem('novatedLeaseInputs', JSON.stringify(saveCopy));
+          }
+          return updated;
+        });
+        convertedOccured = true;
+      }
+
+      // Persist/update the recorded paymentAmountIncludeGst flag. If we converted,
+      // the effective inclusion now matches the selector; otherwise it reflects the
+      // AI-provided paymentFlag.
+      const effectivePaymentIncludesGst = convertedOccured ? selector : paymentFlag;
+      setPaymentAmountIncludeGst(effectivePaymentIncludesGst);
+      if (typeof window !== 'undefined') localStorage.setItem('novatedLeasePaymentAmountIncludeGst', effectivePaymentIncludesGst ? 'true' : 'false');
+    }
+
     // Apply EV flag if present
     if ((fields as any).isEv !== undefined) {
       const v = Boolean((fields as any).isEv);
@@ -463,6 +660,14 @@ export default function HomePage() {
         setAnnualSalary(s);
         if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseAnnualSalary', String(s));
       }
+    }
+
+    // Apply GST inclusion flag for paymentAmount and runningCosts if provided by AI
+    const gstFlag = (fields as any).amountsIncludeGst ?? (fields as any).runningCostsIncludeGst ?? (fields as any).paymentAndRunningCostsIncludeGst ?? (fields as any).includeGst ?? null;
+    if (gstFlag !== null && gstFlag !== undefined) {
+      const gb = Boolean(gstFlag);
+      setRunningCostsIncludeGst(gb);
+      if (typeof window !== 'undefined') localStorage.setItem('novatedLeaseRunningCostsIncludeGst', gb ? 'true' : 'false');
     }
   };
 
@@ -512,6 +717,19 @@ export default function HomePage() {
       return v ? v === 'true' : false;
     }
     return false;
+  });
+
+  // Was the `paymentAmount` value provided by AI flagged as including GST?
+  // This is recorded when AI returns a payment amount; it does not override
+  // the UI's running-costs selector, which remains the authoritative control
+  // for manual adjustments and calculations.
+  const [paymentAmountIncludeGst, setPaymentAmountIncludeGst] = useState<boolean | null>(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('novatedLeasePaymentAmountIncludeGst');
+      if (v === null) return null;
+      return v === 'true';
+    }
+    return null;
   });
   
   // GST savings passed on by employer?
@@ -1123,6 +1341,22 @@ export default function HomePage() {
                 const outer = geminiResponse?.parsedFields ?? geminiResponse ?? null;
                 const inner = outer?.parsedFields ?? outer ?? null;
                 const confidences = outer?.confidences ?? null;
+
+                const getConf = (key: string, nested?: string): number | null => {
+                  if (!confidences) return null;
+                  const c = (confidences as any)[key];
+                  if (typeof c === 'number') return c;
+                  if (nested) {
+                    const n = (confidences as any)[nested];
+                    if (n && typeof n[key] === 'number') return n[key];
+                    const dotted = (confidences as any)[`${nested}.${key}`];
+                    if (typeof dotted === 'number') return dotted;
+                  }
+                  const dottedTop = (confidences as any)[`$${key}`];
+                  return typeof dottedTop === 'number' ? dottedTop : null;
+                };
+
+                const lowStyle = (c: number | null) => (c !== null && c < 0.8 ? { background: '#fff3cd', borderRadius: 6 } : undefined);
                 if (!geminiResponse) return <div>No response content available.</div>;
 
                 return (
@@ -1135,49 +1369,89 @@ export default function HomePage() {
                             {inner.nlProvider !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600, width: '40%' }}>Provider</td>
-                                <td style={{ padding: 6 }}>{String(inner.nlProvider)}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('nlProvider');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>{String(inner.nlProvider)}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.leaseTermYears !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>Lease term (years)</td>
-                                <td style={{ padding: 6 }}>{String(inner.leaseTermYears)}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('leaseTermYears');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>{String(inner.leaseTermYears)}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.fbtBaseValue !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>FBT base value</td>
-                                <td style={{ padding: 6 }}>${Number(inner.fbtBaseValue).toLocaleString()}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('fbtBaseValue');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>${Number(inner.fbtBaseValue).toLocaleString()}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.driveawayCost !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>Driveaway</td>
-                                <td style={{ padding: 6 }}>${Number(inner.driveawayCost).toLocaleString()}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('driveawayCost');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>${Number(inner.driveawayCost).toLocaleString()}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.residualIncl !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>Residual (incl GST)</td>
-                                <td style={{ padding: 6 }}>${Number(inner.residualIncl).toLocaleString()}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('residualIncl');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>${Number(inner.residualIncl).toLocaleString()}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.paymentAmount !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>Payment (per period)</td>
-                                <td style={{ padding: 6 }}>${Number(inner.paymentAmount).toLocaleString(undefined, {maximumFractionDigits:2})} ({inner.paymentsPerYear || 'N/A'} p.a.)</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('paymentAmount');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>${Number(inner.paymentAmount).toLocaleString(undefined, {maximumFractionDigits:2})} ({inner.paymentsPerYear || 'N/A'} p.a.){conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.annualSalary !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>Annual salary</td>
-                                <td style={{ padding: 6 }}>${Number(inner.annualSalary).toLocaleString()}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('annualSalary');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>${Number(inner.annualSalary).toLocaleString()}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.isEv !== undefined && (
                               <tr>
                                 <td style={{ padding: 6, fontWeight: 600 }}>EV</td>
-                                <td style={{ padding: 6 }}>{inner.isEv ? 'Yes' : 'No'}</td>
+                                {
+                                  (() => {
+                                    const conf = getConf('isEv');
+                                    return <td style={{ padding: 6, ...(lowStyle(conf) as any) }}>{inner.isEv ? 'Yes' : 'No'}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>;
+                                  })()
+                                }
                               </tr>
                             )}
                             {inner.runningCosts && (
@@ -1186,9 +1460,15 @@ export default function HomePage() {
                                 <td style={{ padding: 6 }}>
                                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <tbody>
-                                      {Object.entries(inner.runningCosts).map(([k, v]) => (
-                                        <tr key={k}><td style={{ padding: 4, width: '50%', textTransform: 'capitalize' }}>{k}</td><td style={{ padding: 4 }}>${Number(v).toLocaleString()}</td></tr>
-                                      ))}
+                                      {Object.entries(inner.runningCosts).map(([k, v]) => {
+                                        const conf = getConf(k, 'runningCosts') ?? getConf(`runningCosts.${k}`);
+                                        return (
+                                          <tr key={k}>
+                                            <td style={{ padding: 4, width: '50%', textTransform: 'capitalize' }}>{k}</td>
+                                            <td style={{ padding: 4, ...(lowStyle(conf) as any) }}>${Number(v).toLocaleString()}{conf !== null ? ` (${Math.round(conf * 100)}%)` : ''}</td>
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </td>
@@ -1201,7 +1481,7 @@ export default function HomePage() {
 
                     <details style={{ marginTop: 12 }}>
                       <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Full Prompt Sent</summary>
-                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.prompt)}</pre>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: 'transparent', padding: 8 }}>{String(geminiResponse.prompt ?? 'N/A')}</pre>
                     </details>
 
                     <details style={{ marginTop: 8 }}>
@@ -1850,6 +2130,11 @@ export default function HomePage() {
                   <div style={{ fontWeight: 700, fontSize: '16px', color: '#1976d2' }}>{formatCurrency(outOfPocketPerInterval || 0)} / {payLabel}</div>
                 </div>
               </div>
+              {(!annualSalaryNum || annualSalaryNum === 0) && (
+                <div style={{ marginTop: 6, padding: '6px 10px', background: '#fdecea', border: '1px solid #f5c6cb', borderRadius: 6, color: '#b00020', fontWeight: 700, fontSize: '12px' }}>
+                  Please provide salary, calculations are not accurate
+                </div>
+              )}
             </div>
         </div>
 
@@ -2163,6 +2448,12 @@ export default function HomePage() {
                 </div>
               </div>
               
+              {(!annualSalaryNum || annualSalaryNum === 0) && (
+                <div style={{ marginBottom: 8, padding: '8px 12px', background: '#fdecea', border: '1px solid #f5c6cb', borderRadius: 6, color: '#b00020', fontWeight: 700, fontSize: '13px' }}>
+                  Please provide salary, calculations are not accurate
+                </div>
+              )}
+
               <table className="comparison-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', tableLayout: 'fixed', textAlign: 'right' }}>
                 <thead>
                   <tr>
