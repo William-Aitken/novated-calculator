@@ -69,25 +69,27 @@ export async function POST(req: Request) {
     // The model should return ONLY valid JSON (no explanatory text) following the schema below.
     prompt = `You will be given an image or PDF containing a novated lease / vehicle quote. Extract the following fields when they appear in the document:
 
-- leaseTermYears: integer number of years (e.g. 3, 4, 5). Prefer whole years. It may be written as "36 months" etc — convert to years.
-  IMPORTANT: If the document shows a "lease term" label but no numeric value beside it, DO NOT invent a lease term with high confidence. Instead, look for a residual percentage in the document (e.g. "Residual 42%")
+- leaseTermYears: integer number of years (e.g. 3, 4, 5). Prefer whole years. It may be written as "36 months" etc — convert to years. if not avaialble look for residual %/percent, where leaseTermYears is rounded (8 - residual% / 9.337)
 - fbtBaseValue: AUD amount (numeric) used as the FBT base value (no currency symbols in JSON). If FBT base value not available, looks for GST amount then multiply it by 11 and return it as FBT base value.
 - driveawayCost: AUD amount (numeric) for driveaway price.
 - residualExcl: AUD residual value excluding GST (numeric).
 - residualIncl: AUD residual value including GST (numeric).
 - documentationFee: AUD amount (numeric).
-- financedAmount: AUD financed amount (numeric). 
-- paymentAmount: numeric finance payment per period (do NOT include frequency; e.g. 125.50). Also called "lease payment", "lease rental" or "vehicle finance payment" in some documents. if there are multiple values prefer the one in the runnings costs table, do not use  total lease payment.
-- paymentsPerYear: integer payment frequency (use 52,26,12,1 where possible). If frequency is different for lease payment and runnings costs, prefer running cost frequency and convert lease paymentamount.
+- financedAmountManual: AUD financed amount (numeric). 
+- paymentAmount: numeric payment per period (do NOT include frequency; e.g. 125.50). Also called "lease payment", "lease rental" or "vehicle finance payment" in some documents. if there are multiple values prefer the one in the runnings costs table, do not use  total lease payment.
+- paymentsPerYear: integer payment frequency (use 52,26,12,1 where possible). If frequency is different for lease payment and runnings costs, prefer running cost frequency and convert lease payment.
 - monthsDeferred: integer months deferred (e.g. 2).
-- runningCosts: object with optional numeric fields: managementFee, maintenance, tyres, rego, insurance, chargingFuel, other (AUD amounts). Prefer values that have the same frequency as the paymentsPerYear field.
-- paymentAmountIncludeGst: boolean — indicate whether the provided 'paymentAmount' value incl GST (true) or excl GST (false). ONLY include this key when the document explicitly indicates whether the payment includes GST next or near the payment amount; if you cannot determine this from the quote, omit this key entirely.
-- runningCostsIncludeGst: boolean — indicate whether the provided 'runningCosts' values incl GST (true) or excl GST (false). ONLY include this key when the document explicitly indicates whether running costs include GST next or near the running costs amount; if you cannot determine this from the quote, omit this key entirely. The UI has one selector that controls whether running costs include GST; use this boolean to set that selector.
+
+Also extract the novated lease provider name when present:
 - nlProvider: string name of the novated lease provider (e.g. 'Maxxia', 'SG Fleet').
+
+Also extract the applicant's annual salary if present in the quote or accompanying paperwork:
 - annualSalary: numeric annual salary (AUD) if the document includes income or salary information. This should be the "gross pay" or "pre-tax" annual salary figure.
               annualSalary: { type: 'number' },
-- isEv: boolean (true if the quote explicitly marks EV/electric vehicle/BEV/tesla or if the "post tax deduction" or "gst on post tax" under the summary of package/novated lease is 0) False if PHEV or ICE explicitly stated.
 
+Also optionally extract if present:
+- isEv: boolean (true if the quote explicitly marks EV/electric vehicle or if the "post tax deduction" or "gst on post tax" under the summary of package/novated lease is 0) False if PHEV or ICE explicitly stated.
+- runningCosts: object with optional numeric fields: managementFee, maintenance, tyres, rego, insurance, chargingFuel, other (AUD amounts).
 
 Extraction rules:
 - Convert any currency-like strings ("$12,345.00", "AUD 12,345") to plain numbers (12345).
@@ -174,8 +176,6 @@ If you cannot find any of the requested fields, return a JSON object with an emp
     let data: any = null;
     let rawRespText: string | null = null;
     let fullServiceResponse: any = null;
-    const triedModels: string[] = [];
-    const warningMessages: string[] = [];
     try {
       const genaiModule = await import('@google/genai').catch(() => null);
       const genai: any = genaiModule as any;
@@ -210,8 +210,6 @@ If you cannot find any of the requested fields, return a JSON object with an emp
               monthsDeferred: { type: 'number' },
               isEv: { type: 'boolean' },
               nlProvider: { type: 'string' },
-              paymentAmountIncludeGst: { type: 'boolean' },
-              runningCostsIncludeGst: { type: 'boolean' },
               runningCosts: {
                 type: 'object',
                 properties: {
@@ -257,6 +255,7 @@ If you cannot find any of the requested fields, return a JSON object with an emp
         },
       };
 
+      const triedModels: string[] = [];
       const tryGenerate = async (modelName: string) => {
         request.model = modelName;
         triedModels.push(modelName);
@@ -273,21 +272,15 @@ If you cannot find any of the requested fields, return a JSON object with an emp
       try {
         result = await tryGenerate(GEMINI_MODEL);
       } catch (e: any) {
-        const status = e?.response?.status ?? e?.status ?? e?.statusCode ?? e?.code ?? null;
+        // Detect rate-limit / quota errors and retry with fallback models
         const msg = String(e?.message || e || '').toLowerCase();
-        const isRetryableStatus = status === 429 || status === 503 || status === 403;
-        const isRetryableMessage = /quota|limit|exhausted|rate_limit|rate limit|429|forbidden|service unavailable|503/.test(msg);
-        const shouldRetry = isRetryableStatus || isRetryableMessage;
-
-        if (shouldRetry) {
-          console.warn('Primary model returned retryable error; attempting fallback models', { status, message: e?.message, fallbacks: FALLBACK_MODELS });
-          const primaryModel = GEMINI_MODEL;
+        const isLimit = /quota|limit|exhausted|rate_limit|rate limit|429/.test(msg) || e?.status === 429 || e?.code === 429 || e?.statusCode === 429 || e?.response?.status === 429;
+        if (isLimit) {
+          console.warn('Primary model appears rate-limited; attempting fallback models', FALLBACK_MODELS);
           let lastErr: any = e;
           for (const fb of FALLBACK_MODELS) {
             try {
               result = await tryGenerate(fb);
-              // record warning mentioning which model succeeded after fallback
-              warningMessages.push(`Primary model ${primaryModel} returned ${status || 'an error'}; used fallback ${fb}`);
               lastErr = null;
               break;
             } catch (e2: any) {
@@ -296,12 +289,8 @@ If you cannot find any of the requested fields, return a JSON object with an emp
             }
           }
           if (lastErr) {
-            fullServiceResponse = { lastError: lastErr, triedModels };
-            // Provide clearer error to caller before throwing so outer catch can include context
-            const errToThrow: any = new Error(`All models failed: primary ${primaryModel} and fallbacks ${FALLBACK_MODELS.join(', ')}. Last error: ${String(lastErr?.message || lastErr)}`);
-            (errToThrow as any).status = lastErr?.response?.status ?? lastErr?.status ?? lastErr?.statusCode ?? null;
-            (errToThrow as any).triedModels = triedModels;
-            throw errToThrow;
+            fullServiceResponse = lastErr;
+            throw lastErr;
           }
         } else {
           fullServiceResponse = e;
@@ -395,7 +384,7 @@ If you cannot find any of the requested fields, return a JSON object with an emp
       return NextResponse.json({ error: null, parsedFields: null, rawText: textOutput, serviceResponse: data, prompt });
     }
 
-    return NextResponse.json({ error: null, parsedFields, rawText: textOutput, prompt, serviceResponse: data, fullServiceResponse, warnings: warningMessages.length ? warningMessages : undefined });
+    return NextResponse.json({ error: null, parsedFields, rawText: textOutput, prompt, serviceResponse: data, fullServiceResponse });
   } catch (err: any) {
     const errInfo: any = {
       message: err?.message || String(err),
@@ -404,9 +393,7 @@ If you cannot find any of the requested fields, return a JSON object with an emp
       status: err?.status ?? err?.statusCode ?? null,
       responseStatus: err?.response?.status ?? err?.response?.statusCode ?? null,
       responseBody: err?.response?.data ?? err?.response?.body ?? null,
-      triedModels: err?.triedModels ?? null,
     };
-    const respStatus = errInfo.status ?? errInfo.responseStatus ?? 500;
-    return NextResponse.json({ error: errInfo.message, errorInfo: errInfo, prompt: prompt ?? null }, { status: respStatus });
+    return NextResponse.json({ error: errInfo.message, errorInfo: errInfo, prompt: prompt ?? null }, { status: 500 });
   }
 }
