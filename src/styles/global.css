@@ -83,7 +83,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0
 
 /* UploadExtract styles */
 .upload-extract{display:flex;flex-direction:column;align-items:stretch;gap:12px}
-.upload-extract .upload-dropzone{border:0;padding:6px;border-radius:999px;background:linear-gradient(90deg,#12b286,#1e8ef7);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.upload-extract .upload-dropzone{border:0;padding:6px;border-radius:999px;background:linear-gradient(90deg,#b257b9,#1ee1f7);display:inline-flex;align-items:center;justify-content:center;color:#fff}
 .upload-extract .upload-dropzone.is-dragging{filter:brightness(1.03)}
 .upload-extract .upload-dropzone:active{transform:translateY(1px)}
 

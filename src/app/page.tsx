@@ -321,6 +321,10 @@ export default function HomePage() {
     const contentElement = document.getElementById('calculator-content');
     if (!contentElement) return;
 
+    // Try to locate the top bar (logo container) to include in the export
+    const logoImg = document.querySelector('main.app-main img[src="/logo.png"]');
+    const headerElement = logoImg ? logoImg.closest('div') as HTMLElement : null;
+
     try {
       // Create a wrapper with padding for export and set a narrower export width
       const wrapper = document.createElement('div');
@@ -334,9 +338,10 @@ export default function HomePage() {
       wrapper.style.maxWidth = exportWidth;
       wrapper.style.margin = '24px auto';
       const clonedContent = contentElement.cloneNode(true) as HTMLElement;
-      
-      // Expand all details elements in the cloned content
-      const detailsElements = clonedContent.querySelectorAll('details');
+      const clonedHeader = headerElement ? (headerElement.cloneNode(true) as HTMLElement) : null;
+
+      // Expand all details elements in the cloned DOM (header + content)
+      const detailsElements = (clonedHeader ? [clonedHeader, clonedContent] : [clonedContent]).flatMap(node => Array.from(node.querySelectorAll('details')));
       detailsElements.forEach((details) => {
         details.setAttribute('open', '');
       });
@@ -473,6 +478,8 @@ export default function HomePage() {
         console.warn('Replacing form controls for export failed', e);
       }
       
+      // Append header first (if present) then the main content
+      if (clonedHeader) wrapper.appendChild(clonedHeader);
       wrapper.appendChild(clonedContent);
       document.body.appendChild(wrapper);
 
@@ -1504,9 +1511,8 @@ export default function HomePage() {
         paddingBottom: '16px',
         borderBottom: '1px solid #e6e9ee',
       }}>
-        <div>
-          <h1 style={{ margin: '0 0 0 0' }}>Novated Lease Calculator</h1>
-          <p style={{ margin: '0px 0 0 0', fontSize: '14px', color: '#666' }}>nl-calc.vercel.app    by: Will Aitken </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="/logo.png" alt="Novated Lease Calculator" style={{ height: 40 }} />
         </div>
         
         {/* Top right buttons */}
