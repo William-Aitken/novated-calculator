@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 - residualExcl: AUD residual value excluding GST (numeric).
 - residualIncl: AUD residual value including GST (numeric).
 - documentationFee: AUD amount (numeric).
-- financedAmountManual: AUD financed amount (numeric). 
+- financedAmountManual: AUD financed amount (numeric). some quotes have it as "maxxia price" or "remserv price"
 - paymentAmount: numeric payment per period (do NOT include frequency; e.g. 125.50). Also called "lease payment", "lease rental" or "vehicle finance payment" in some documents. if there are multiple values prefer the one in the runnings costs table, do not use  total lease payment.
 - paymentsPerYear: integer payment frequency (use 52,26,12,1 where possible). If frequency is different for lease payment and runnings costs, prefer running cost frequency and convert lease payment.
 - monthsDeferred: integer months deferred (e.g. 2).

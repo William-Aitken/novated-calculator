@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { NovatedLeaseInputs } from '@/utils/leaseMath';
 
 export default function UploadExtract({ onExtract, onResponse }: { onExtract: (fields: Partial<NovatedLeaseInputs> | null) => void, onResponse?: (res: any) => void }) {
@@ -7,13 +7,44 @@ export default function UploadExtract({ onExtract, onResponse }: { onExtract: (f
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [debugResponse, setDebugResponse] = useState<any>(null);
+  const [estimateSec, setEstimateSec] = useState<number | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+
+  const AVG_KEY = 'avgExtractMs';
+
+  const getAvgMs = () => {
+    const v = typeof window !== 'undefined' ? localStorage.getItem(AVG_KEY) : null;
+    return v ? Number(v) : 10000; // default seed 10s
+  };
+
+  const updateAvgMs = (latest: number) => {
+    try {
+      const prev = getAvgMs();
+      const next = Math.round(prev * 0.7 + latest * 0.3);
+      localStorage.setItem(AVG_KEY, String(next));
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const uploadFile = useCallback(async (f: File) => {
     setFileName(f.name);
     setLoading(true);
     setMessage(null);
+    // start estimate timer using a running average of past durations
+    const avg = getAvgMs();
+    startRef.current = performance.now();
+    setEstimateSec(Math.max(1, Math.ceil(avg / 1000)));
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+      if (!startRef.current) return;
+      const elapsed = performance.now() - startRef.current;
+      const remainMs = Math.max(0, avg - elapsed);
+      setEstimateSec(Math.ceil(remainMs / 1000));
+    }, 250);
     try {
       const form = new FormData();
       form.append('file', f);
@@ -55,6 +86,18 @@ export default function UploadExtract({ onExtract, onResponse }: { onExtract: (f
       onExtract(null);
     } finally {
       setLoading(false);
+      // stop timer and update average
+      const end = performance.now();
+      if (startRef.current) {
+        const dur = Math.max(0, end - startRef.current);
+        updateAvgMs(dur);
+      }
+      startRef.current = null;
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setEstimateSec(null);
     }
   }, [onExtract]);
 
@@ -100,7 +143,9 @@ export default function UploadExtract({ onExtract, onResponse }: { onExtract: (f
           <img src="/gemini.svg" alt="Gemini" className="upload-icon" aria-hidden />
           <div className="upload-label-wrap">
             <strong className="upload-label">{loading ? 'Uploading...' : 'Upload quote'}</strong>
-            <span className="upload-subtext">Use Gemini to analyse</span>
+            <span className="upload-subtext">
+              {loading && estimateSec !== null ? `Processing — ~${estimateSec}s left` : 'Use Gemini to analyse'}
+            </span>
           </div>
         </div>
       </div>
