@@ -2059,22 +2059,29 @@ export default function HomePage() {
                   className="input--compact align-end"
                 />
 
-                <label className="form-label">Salary Package Cap</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={packageCap ?? ''}
-                  onChange={e => {
-                    const v = e.target.value === '' ? undefined : Number(e.target.value);
-                    setPackageCap(v);
-                    if (typeof window !== 'undefined') {
-                      if (v === undefined) localStorage.removeItem('novatedLeasePackageCap');
-                      else localStorage.setItem('novatedLeasePackageCap', String(v));
-                    }
-                  }}
-                  className="input--compact align-end"
-                />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ cursor: 'pointer', fontWeight: 600 }}>More options</summary>
+                    <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: '150px auto', gap: '10px', alignItems: 'center' }}>
+                      <label className="form-label">Salary Package Cap</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={packageCap ?? ''}
+                        onChange={e => {
+                          const v = e.target.value === '' ? undefined : Number(e.target.value);
+                          setPackageCap(v);
+                          if (typeof window !== 'undefined') {
+                            if (v === undefined) localStorage.removeItem('novatedLeasePackageCap');
+                            else localStorage.setItem('novatedLeasePackageCap', String(v));
+                          }
+                        }}
+                        className="input--compact align-end"
+                      />
+                    </div>
+                  </details>
+                </div>
               </div>
               
             </div>
