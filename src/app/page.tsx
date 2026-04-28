@@ -310,7 +310,7 @@ export default function HomePage() {
       navigator.share(shareData).catch(err => console.log('Share error:', err));
     } else {
       // Fallback: copy to clipboard
-      const text = `${shareData.text}\n${shareUrl}`;
+      const text = `${shareUrl}`;
       navigator.clipboard.writeText(text).then(() => {
         alert('Calculation link copied to clipboard!');
       });

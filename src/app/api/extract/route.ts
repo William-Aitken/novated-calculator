@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
 - leaseTermYears: integer number of years (e.g. 3, 4, 5). Prefer whole years. It may be written as "36 months" etc — convert to years. if not avaialble look for residual %/percent, where leaseTermYears is rounded (8 - residual% / 9.337)
 - fbtBaseValue: AUD amount (numeric) used as the FBT base value (no currency symbols in JSON). If FBT base value not available, looks for GST amount then multiply it by 11 and return it as FBT base value.
-- driveawayCost: AUD amount (numeric) for driveaway price.
+- driveawayCost: AUD amount (numeric) for driveaway price. Do not guess this, only return driveaway price if its on the quote or can be calculate with the sum of car cost, gst, stampduty and registration that is in its own table.
 - residualExcl: AUD residual value excluding GST (numeric).
 - residualIncl: AUD residual value including GST (numeric).
 - documentationFee: AUD amount (numeric).
