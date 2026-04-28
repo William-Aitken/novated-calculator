@@ -17,7 +17,7 @@ export default function UploadExtract({ onExtract, onResponse }: { onExtract: (f
 
   const getAvgMs = () => {
     const v = typeof window !== 'undefined' ? localStorage.getItem(AVG_KEY) : null;
-    return v ? Number(v) : 10000; // default seed 10s
+    return v ? Number(v) : 20000; // default seed 20s
   };
 
   const updateAvgMs = (latest: number) => {
