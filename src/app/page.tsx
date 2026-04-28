@@ -301,8 +301,8 @@ export default function HomePage() {
     const shareUrl = `${baseUrl}?calc=${encoded}`;
 
     const shareData = {
-      title: 'Novated Lease Calculator Results',
-      text: `Check out my novated lease calculation! Driveaway: $${inputs.driveawayCost}, Lease Term: ${inputs.leaseTermYears} years, FBT Base: $${inputs.fbtBaseValue}`,
+      //title: 'Novated Lease Calculator Results',
+      //text: `Check out my novated lease calculation! Driveaway: $${inputs.driveawayCost}, Lease Term: ${inputs.leaseTermYears} years, FBT Base: $${inputs.fbtBaseValue}`,
       url: shareUrl,
     };
 
